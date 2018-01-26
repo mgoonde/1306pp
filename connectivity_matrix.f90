@@ -1,3 +1,4 @@
+! his routine fill the connectivity matrix
 subroutine
 connectivity_matrix(idref,vertex_pos,connect,color,topo_cutoff,color_to_color_cutoff)
 
