@@ -20,6 +20,13 @@ integer(kind=C_INT), dimension(n,n) :: matrix
 integer(kind=C_INT), dimension(n) :: vector1, vector2
 end subroutine
 
+subroutine c_ffnautyex1_quadris(n,matrix,vector1,vector2) BIND(C, name="ffnautyex1_quadris")
+use ISO_C_BINDING
+integer(kind=C_INT) :: n
+integer(kind=C_INT), dimension(n,n) :: matrix
+integer(kind=C_INT), dimension(n) :: vector1, vector2
+end subroutine
+
 end interface
 
 end module

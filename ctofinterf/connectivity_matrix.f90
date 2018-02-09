@@ -1,5 +1,4 @@
-subroutine
-local_to_global_vertex(idref,vertex_pos,topo_cutoff,local_nbvertex,from_local_to_globalvertex)
+subroutine local_to_global_vertex(idref,vertex_pos,topo_cutoff,local_nbvertex,from_local_to_globalvertex)
 ! we assume MAXMN = 1000, static allocation
 implicit none
 
@@ -66,32 +65,7 @@ write(*,*) i, local_color(i)
 enddo
 end subroutine
 
-subroutine sort_local_vertex_by_color(local_color,from_local_to_globalvertex)
-
-implicit none
-
-integer, intent(inout) :: local_color(:)
-integer, intent(inout) :: from_local_to_globalvertex(:)
-!
-! local variables
-!
-integer :: temp1(1:size(from_local_to_globalvertex,1)), temp2(1:size(from_local_to_globalvertex,1))
-integer :: local_dim, i
-
-local_dim = size(from_local_to_globalvertex,1)
-
-call 
-
-
-end subroutine
-
-
-subroutine
-
-end subroutine
-
-subroutine
-local_connectivity_matrix(from_local_to_globalvertex,vertex_pos,color,color_to_color_cutoff,connect)
+subroutine local_connectivity_matrix(from_local_to_globalvertex,vertex_pos,local_nbvertex,color,color_to_color_cutoff,cell,connect)
 
 implicit none
 

@@ -1,26 +1,17 @@
-subroutine sort_property(vertex_property,color,unsorted_from_sorted,sorted_from_unsorted)
+subroutine sort_property(n,vertex_property,color,unsorted_from_sorted,sorted_from_unsorted)
 implicit none
 
-integer, intent(inout):: vertex_property(:)
-integer, intent(out) :: sorted_from_unsorted(:), unsorted_from_sorted(:)
-integer, intent(out) :: color(:)
+integer, intent(inout):: vertex_property(1:n)
+integer, intent(out) :: sorted_from_unsorted(1:n), unsorted_from_sorted(1:n)
+integer, intent(out) :: color(1:n)
 
 integer, allocatable :: copy_vertex_property(:)
-integer :: i,j,k, temp
+integer :: i,j,k, temp, n
 
-vertex_property(1)=3
-vertex_property(2)=2
-vertex_property(3)=3
-vertex_property(4)=10
-vertex_property(5)=5
-vertex_property(6)=2
-vertex_property(7)=3
-vertex_property(8)=4
-vertex_property(9)=2
-vertex_property(10)=6
-vertex_property(11)=7
-vertex_property(12)=4
-vertex_property(13)=2
+write(*,*) "from sort_property index"
+
+write(*,*) "n=", n
+allocate(copy_vertex_property(1:n))
 
 copy_vertex_property(:)=vertex_property(:)
 
@@ -50,7 +41,8 @@ do i=1,n
   enddo
 enddo
 
-write(*,*) "from sort_property index"
+write(*,*) "original vertex color, actual vertex color, sorted from unsorted"
+write(*,*) ""
 do i=1,n
 write(*,*) copy_vertex_property(i), vertex_property(i),sorted_from_unsorted(i), &
      unsorted_from_sorted(i)
@@ -60,6 +52,11 @@ color(:)=vertex_property(:)
 
 do i=1,n-1
   if(vertex_property(i)/=vertex_property(i+1)) color(i)=0
+enddo 
+color(n)=0
+do i=1,n
   write(*,*) "ooo", vertex_property(i), color(i)
 enddo 
-end program
+
+deallocate(copy_vertex_property)
+end subroutine
