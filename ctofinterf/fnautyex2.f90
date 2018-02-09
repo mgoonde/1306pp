@@ -109,7 +109,7 @@ write(*,*) "------------------------------"
 write(*,*) "new lab after nauty, and pos in such order"
 
 do i=1,n
-  write(*,*) lab(i), (global_pos(lab(i),k), k=1,space_dim)
+  write(*,*) lab(i), global_color(sorted_color_from_global(lab(i))),(global_pos(lab(i),k)/alat, k=1,space_dim)
 enddo
 write(*,*) "-----------------------------"
 
