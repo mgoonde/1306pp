@@ -80,26 +80,28 @@ call sort_property(n,global_color,color,global_from_sorted_color,sorted_color_fr
 
 ! fill connectivity matrix for n-vertex 
 do i=1, n
-   j=i+1
+   do j=i+1, n
     dij=0.0
     do k=1,space_dim
     dij= dij+(global_pos(j,k)-global_pos(i,k))**2
     enddo
     dij=sqrt(dij) 
     connect(i,j)= NINT(0.5*erfc(dij-color_cutoff(global_color(i),global_color(j))))
-    connect(j,i)= NINT(0.5*erfc(dij-color_cutoff(global_color(i),global_color(j))))
+    connect(j,i)= NINT(0.5*erfc(dij-color_cutoff(global_color(j),global_color(i))))
+    write(*,*) i,j,dij, connect(i,j), connect(j,i)
+   enddo
 enddo
 
 write(*,*) "connect"
 write(*,*) " "
 do i=1, n
- write(*,*) (connect(i,j), j=1,n)
+ write(*,"(15i4)") (connect(i,j), j=1,n)
 enddo
 
 write(*,*) "lab"
 write(*,*) ""
 do i=1,n
-  lab(i)=global_from_sorted_color(i)
+  lab(i)=global_from_sorted_color(i)-1
   write(*,*) lab(i)
 enddo
 
@@ -109,7 +111,7 @@ write(*,*) "------------------------------"
 write(*,*) "new lab after nauty, and pos in such order"
 
 do i=1,n
-  write(*,*) lab(i), global_color(sorted_color_from_global(lab(i))),(global_pos(lab(i),k)/alat, k=1,space_dim)
+  write(*,*) lab(i), global_color(sorted_color_from_global(lab(i)+1)),(global_pos(lab(i)+1,k)/alat, k=1,space_dim)
 enddo
 write(*,*) "-----------------------------"
 
