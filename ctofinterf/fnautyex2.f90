@@ -78,7 +78,7 @@ write(*,*) "size fo global color:", size(global_color,1)
 
 call sort_property(n,global_color,color,global_from_sorted_color,sorted_color_from_global) 
 
-! fill connectivity matrix for n-vertex polynomials
+! fill connectivity matrix for n-vertex 
 do i=1, n
    j=i+1
     dij=0.0
@@ -106,10 +106,10 @@ enddo
 call c_ffnautyex1_quadris(n,connect,lab,color)
 
 write(*,*) "------------------------------"
-write(*,*) "new lab after nauty"
+write(*,*) "new lab after nauty, and pos in such order"
 
 do i=1,n
-  write(*,*) lab(i)
+  write(*,*) lab(i), (global_pos(lab(i),k), k=1,space_dim)
 enddo
 write(*,*) "-----------------------------"
 

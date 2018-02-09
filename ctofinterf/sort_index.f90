@@ -10,6 +10,8 @@ integer :: i,j,k, temp, n
 
 write(*,*) "from sort_property index"
 
+n=size(vertex_property,1)
+
 write(*,*) "n=", n
 allocate(copy_vertex_property(1:n))
 
