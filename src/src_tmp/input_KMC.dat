@@ -1,0 +1,26 @@
+#
+#  KMC input
+#
+#  For begining we declare 
+
+name_simulation "KMC test"
+system_dimension	2
+#Nber_node_1dim		128
+nsite_x			128
+nsite_y			128
+#nsite_z			1  
+init_config		0.05
+
+shared_library	"shared_lib/lib_sys01.so"
+
+node_prop 	2
+input_event "event.lib"
+algorithm	"BKL"
+temperature	300
+nstep		20000
+freq_write	1000
+calc_properties	1
+bound_condition	p p f
+
+#
+

@@ -1,0 +1,10 @@
+#
+#  Library of event
+#  System : Vacancy diffusion in 2D
+#  Format File :
+#  Id_event	Init_state	final_state	E_barrier(eV)	dE(eV)
+#
+Number_of_event	1
+1	1	0	0	1
+
+
