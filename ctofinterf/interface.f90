@@ -27,6 +27,22 @@ integer(kind=C_INT), dimension(n,n) :: matrix
 integer(kind=C_INT), dimension(n) :: vector1, vector2
 end subroutine
 
+subroutine c_ffnautyex1_petka(n,matrix,vector1,vector2,hv1,hv2,hv3) BIND(C, name="ffnautyex1_petka")
+use ISO_C_BINDING
+integer(kind=C_INT) :: n
+integer(kind=C_INT) :: hv1,hv2,hv3
+integer(kind=C_INT), dimension(n,n) :: matrix
+integer(kind=C_INT), dimension(n) :: vector1, vector2
+end subroutine
+
+subroutine c_ffnautyex1_sestic(n,matrix,vector1,vector2,hv1,hv2,hv3) BIND(C, name="ffnautyex1_sestic")
+use ISO_C_BINDING
+integer(kind=C_INT) :: n
+integer(kind=C_INT) :: hv1,hv2,hv3
+integer(kind=C_INT), dimension(n,n) :: matrix
+integer(kind=C_INT), dimension(n) :: vector1, vector2
+end subroutine
+
 end interface
 
 end module

@@ -8,11 +8,11 @@ integer, intent(out) :: color(1:n)
 integer, allocatable :: copy_vertex_property(:)
 integer :: i,j,k, temp, n
 
-write(*,*) "from sort_property index"
+!write(*,*) "from sort_property index"
 
 n=size(vertex_property,1)
 
-write(*,*) "n=", n
+!write(*,*) "n=", n
 allocate(copy_vertex_property(1:n))
 
 copy_vertex_property(:)=vertex_property(:)
@@ -43,12 +43,12 @@ do i=1,n
   enddo
 enddo
 
-write(*,*) "original vertex color, actual vertex color, sorted from unsorted"
-write(*,*) ""
-do i=1,n
-write(*,*) copy_vertex_property(i), vertex_property(i),sorted_from_unsorted(i), &
-     unsorted_from_sorted(i)
-enddo
+!write(*,*) "original vertex color, actual vertex color, sorted from unsorted"
+!write(*,*) ""
+!do i=1,n
+!write(*,*) copy_vertex_property(i), vertex_property(i),sorted_from_unsorted(i), &
+!     unsorted_from_sorted(i)
+!enddo
 
 color(:)=vertex_property(:)
 
@@ -56,9 +56,9 @@ do i=1,n-1
   if(vertex_property(i)/=vertex_property(i+1)) color(i)=0
 enddo 
 color(n)=0
-do i=1,n
-  write(*,*) "ooo", vertex_property(i), color(i)
-enddo 
+!do i=1,n
+!  write(*,*) "ooo", vertex_property(i), color(i)
+!enddo 
 
 deallocate(copy_vertex_property)
 end subroutine

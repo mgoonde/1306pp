@@ -16,7 +16,7 @@ real, intent(in) :: color_to_color_cutoff(:)
 ! local variables
 integer :: i, j
 real :: rij(size(vertex_pos,2)), riref(size(vertex_pos,2)), modrij, modriref
-integer :: ndim
+integer :: ndim, indim
 
 nbvertex=size(vertex_pos,1)
 ndim=size(vertex_pos,2)
@@ -50,10 +50,10 @@ do i=1, nbvertex
     enddo
 
     connect(i,j) = NINT(0.5*erfc(modriref-topo_cutoff))*&
-    NINT(0.5*erfc(modrij-color_to_color(color(i),color(j))))
+    NINT(0.5*erfc(modrij-color_to_color_cutoff(color(i),color(j))))
 
     connect(j,i) = NINT(0.5*erfc(modriref-topo_cutoff))*&
-    NINT(0.5*erfc(modrij-color_to_color(color(i),color(j))))
+    NINT(0.5*erfc(modrij-color_to_color_cutoff(color(i),color(j))))
 
   enddo
 enddo

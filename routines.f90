@@ -14,6 +14,44 @@ module routines
    res(3) = a(1)*b(2) - a(2)*b(1)
   end function cross
 
+
+  real function inner_prod(A,B)
+   implicit none
+   real,dimension(3) :: A, B 
+   integer :: i
+   
+   inner_prod = 0.0
+   do i = 1,3
+      inner_prod = inner_prod+A(i)*B(i)
+   end do
+  end function inner_prod
+
+
+  real function norm(A)
+   implicit none
+   real, dimension(3) :: A
+
+   norm = sqrt(real(inner_prod(A,A)))
+  end function norm
+
+
+  subroutine gram_schmidt(A,B,bases)
+  !! gives three bases vectors, third being cross A,B
+   implicit none
+   real, dimension(3), intent(in) :: A,B
+   real, dimension(3,3), intent(out) :: bases
+   integer :: i,j
+
+   bases(1,:) = A(:)/norm(A(:))
+   bases(2,:) = B(:)
+   bases(2,:) = bases(2,:) - inner_prod(B(:),bases(1,:))*bases(1,:)
+   bases(2,:) = bases(2,:) / norm(bases(2,:))
+   bases(3,:) = cross(bases(1,:),bases(2,:))   
+   bases(3,:) = bases(3,:) / norm(bases(3,:))
+
+  end subroutine gram_schmidt
+
+
   subroutine read_line(fd, line, end_of_file)
   !--------------------
   ! read a line, makes possible to use # for comment lines, skips empty lines, 
@@ -93,6 +131,24 @@ module routines
    end do
    rewind(fd_events)
   end subroutine get_nevt
+
+
+  subroutine get_center_of_topology(coords,cot)
+   implicit none
+   real, dimension(:,:), intent(in) :: coords
+   real, dimension(3), intent(out) :: cot
+   integer :: nsites, i
+
+   nsites = size(coords,1)
+   cot(:) = 0.0
+   do i=1, nsites
+      cot(1) = cot(1) + coords(i,1)
+      cot(2) = cot(2) + coords(i,2)
+      cot(3) = cot(3) + coords(i,3)
+   end do
+   cot = cot/nsites
+
+  end subroutine get_center_of_topology
 
 
   subroutine get_hash_prob(fd,hash1,hash2,prob,nevt)
