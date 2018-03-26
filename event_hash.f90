@@ -127,6 +127,9 @@ write(*,*) 'color is',color
    write(*,*) "config hash is"
    write(*,*) kart_hash
 
+!   do ii=1,ev_init_nat
+!      lab(ii) = lab(ii) + 1
+!   end do
    write(*,*) "canon order, canon typ, and pos in such order"
 
    do ii=1,ev_init_nat
@@ -140,9 +143,12 @@ write(*,*) 'color is',color
    ! and the third is cross(1,2)
    do u =2,ev_init_nat
       proj = inner_prod(ev_init_coord(1,:),ev_init_coord(u,:))
+      proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
       write(*,*) 'proj 1',u, 'is',proj
-      if( abs(proj) > norm(ev_init_coord(1,:))*norm(ev_init_coord(u,:))-1.0e-15 .and. &
-          abs(proj) < norm(ev_init_coord(1,:))*norm(ev_init_coord(u,:))+1.0e-15) then
+      if( abs(proj) > norm(ev_init_coord(lab(1)+1,:))*&
+                      norm(ev_init_coord(lab(u)+1,:))-1.0e-15 .and. &
+          abs(proj) < norm(ev_init_coord(lab(1)+1,:))*&
+                      norm(ev_init_coord(lab(u)+1,:))+1.0e-15) then
          write(*,*) 'vectors 1 and',u,'are collinear!'
          continue
       else
@@ -154,9 +160,9 @@ write(*,*) 'color is',color
 
    !! remember the second vector index!
 write(*,*) 'chosen second vector index',m
-   call gram_schmidt(ev_init_coord(1,:), ev_init_coord(m,:), bases)
+   call gram_schmidt(ev_init_coord(lab(1)+1,:), ev_init_coord(lab(m)+1,:), bases)
 
-   if( m > ev_init_nat) bases(:,:) = 0.0
+   if( lab(m)+1 > ev_init_nat) bases(:,:) = 0.0
    write(*,*) '(1,2)',inner_prod(bases(1,:),bases(2,:))
    write(*,*) '(1,3)',inner_prod(bases(1,:),bases(3,:))
    write(*,*) '(2,3)',inner_prod(bases(2,:),bases(3,:))
@@ -183,10 +189,15 @@ write(*,*) 'chosen second vector index',m
    !! the event tag
    write(ev_tag,'(I8)') i
    write(666,*) '@',trim(adjustl(ev_tag))
+   !! probability of this event
    write(666,*) prob
+   !! numbr of atoms
    write(666,*) ev_init_nat
+   !! hash
    write(666,*) kart_hash
+   !! event vectors in canonical order
    write(666,'(I5,I5,I5,I5,I5,I5,I5,I5)') (lab(ii)+1, ii=1,ev_init_nat)
+   !! bases vectors
    write(666,*) bases(1,:)
    write(666,*) bases(2,:)
    write(666,*) bases(3,:)
