@@ -21,6 +21,7 @@ program event_hash
  
  open(unit=444,file='events.in',status='old')
  open(unit=500,file='neighbor_table.dat',status='old',action='read')
+ open(unit=666,file='ordered_events.dat',status='replace',action='write')
 
  color_cutoff(:,:) = 0.0
  read(500,*)
@@ -45,6 +46,7 @@ do i = 1,nevt
                           ev_final_nat,ev_final_typ,ev_final_coord)
    write(*,*) 'ev tag', i
    write(*,*) 'ev init nat', ev_init_nat
+   write(*,*) 'ev init typ', ev_init_typ
    write(*,*) 'event init coords'
    do k = 1, ev_init_nat
       write(*,*) (ev_init_coord(k,j),j=1,3)
@@ -83,7 +85,7 @@ do i = 1,nevt
    call sort_property(ev_init_nat, ev_init_typ, color,&
                   global_from_sorted_color, sorted_color_from_global)
 
-write(*,*) 'ev_init_typ',ev_init_typ
+write(*,*) 'sorted ev_init_typ',ev_init_typ
 write(*,*) 'global_from_sorted_color',global_from_sorted_color
 write(*,*) 'sorted_color_from_global',sorted_color_from_global 
 write(*,*) 'color is',color
@@ -123,6 +125,13 @@ write(*,*) 'color is',color
            modulo(hash_val3, 882377) - 1, 1299709)+1
    write(*,*) "config hash is"
    write(*,*) kart_hash
+
+   write(*,*) "canon order, canon typ, and pos in such order"
+
+   do ii=1,ev_init_nat
+     write(*,*) lab(ii)+1, ev_init_typ(sorted_color_from_global(lab(ii)+1)),(ev_init_coord(lab(ii)+1,k), k=1,3)
+   enddo
+
 
 
    deallocate(connect)
