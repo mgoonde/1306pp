@@ -1,9 +1,10 @@
 program hashtest
  use routines
+ use f90nautyinterf
  integer :: nevt, ievt, hash, fd, isite, nsites, k, idx, this_site, i
  integer, allocatable :: init_hash(:), final_hash(:)
  integer, allocatable :: site_hash(:), ev_site(:), ev_tag(:)
- real :: c, rnd
+ real :: c, rnd, probA
  real, allocatable :: init_pos1(:,:), final_pos1(:,:), init_pos2(:,:), final_pos2(:,:)
  real, allocatable ::  coords(:,:)
  real, allocatable ::  coord(:,:)
@@ -19,7 +20,10 @@ program hashtest
  real, dimension(3,3) :: A
  real, dimension(2,2) :: B
  real, dimension(2) :: r, v
- real, dimension(3) :: r3, v3
+ real, dimension(3) :: r3, v3, COM
+ real, dimension(3) :: basis1, basis2, basis3
+ real, dimension(3,3) :: bases
+ integer :: m,u
 
  open(unit=444,file='events.in',status='old')
  open(unit=111, file='site.in',status='old')
@@ -116,7 +120,7 @@ program hashtest
  
 !!! get that event info
  call get_ev_coord(444,ev_tag(idx), ev_init_nat, ev_init_typ, ev_init_coord,&
-                            ev_final_nat,ev_final_typ,ev_final_coord)
+                            ev_final_nat,ev_final_typ,ev_final_coord,probA)
 ! write(*,*) ev_init_typ(:)
 ! write(*,*) ev_init_coord(1,:)
 ! write(*,*) ev_init_coord(2,:)
@@ -241,4 +245,110 @@ write(*,*) 'coord(5,:)',coord(ev_atm_list(1),:)
    write(999,*) site_hash(isite), coord(isite,1), coord(isite,2), coord(isite,3)
  end do
  
+
+ write(*,*) repeat('-',60)
+COM(:) = 0.0
+do i=1,nsites
+ write(*,*) (coord(i,j), j =1,3) 
+ COM(1) = COM(1) + coord(i,1)/nsites
+ COM(2) = COM(2) + coord(i,2)/nsites
+ COM(3) = COM(3) + coord(i,3)/nsites
+end do
+write(*,*) 'com',COM
+
+call get_center_of_topology(coord,COM)
+write(*,*) 'com2', COM
+
+!write(*,*) (ev_init_coord(1,j),j=1,3)
+write(*,*) ev_init_coord(:,:)
+
+ write(*,*) repeat('_',60)
+close(444)
+open(unit=444,file='events.in',status='old')
+
+
+
+!! for each event create connectivity matrix, fill color, generate hash
+call get_nevt(444,nevt)
+
+do i = 1,nevt
+
+   ! read event
+   call get_ev_coord(444,i,ev_init_nat,ev_init_typ,ev_init_coord,&
+                          ev_final_nat,ev_final_typ,ev_final_coord,probA)
+   write(*,*) 'ev tag', i
+   write(*,*) 'ev init nat', ev_init_nat
+   write(*,*) 'event init coords'
+   do k = 1, ev_init_nat
+      write(*,*) (ev_init_coord(k,j),j=1,3)
+   end do
+
+   ! get center of mass for event
+   call get_center_of_topology(ev_init_coord,COM)
+   write(*,*) 'ev COM',COM
+!   write(*,*) COM
+
+   ! write init coords in terms of COM
+   write(*,*) 'ev init coords in terms of COM'
+   do k = 1,ev_init_nat
+      ev_init_coord(k,1) = ev_init_coord(k,1) - COM(1)
+      ev_init_coord(k,2) = ev_init_coord(k,2) - COM(2)
+      ev_init_coord(k,3) = ev_init_coord(k,3) - COM(3)
+      write(*,*) ev_init_coord(k,:)
+   end do
+
+
+   ! get hash: construct connectivity, color, ...
+   ! ~ look in fnautyex4.f90
+
+
+
+   ! construct basis: first event vector is first basis, then do gramm-schmidt with 2nd
+   ! and the third is cross(1,2)
+   do u =2,ev_init_nat
+      proj = inner_prod(ev_init_coord(1,:),ev_init_coord(u,:))
+      write(*,*) 'proj 1',u, 'is',proj
+      if( abs(proj) > norm(ev_init_coord(1,:))*norm(ev_init_coord(u,:))-1.0e-15 .and. &
+          abs(proj) < norm(ev_init_coord(1,:))*norm(ev_init_coord(u,:))+1.0e-15) then
+         write(*,*) 'vectors 1 and',u,'are collinear!'
+         continue
+      else
+         m = u
+         goto 102
+      endif
+   end do
+   102 continue
+  
+   !! remember the second vector index!
+write(*,*) 'chosen second vector index',m
+   call gram_schmidt(ev_init_coord(1,:), ev_init_coord(m,:), bases)
+
+   if( m > ev_init_nat) bases(:,:) = 0.0
+   write(*,*) '(1,2)',inner_prod(bases(1,:),bases(2,:))
+   write(*,*) '(1,3)',inner_prod(bases(1,:),bases(3,:))
+   write(*,*) '(2,3)',inner_prod(bases(2,:),bases(3,:))
+   ! check bases collinearity
+   do u=1,3
+      do m = 1,3
+         if( m ==u ) cycle
+         proj = inner_prod(bases(u,:),bases(m,:))
+         if( abs(proj) > 1.0e-15 ) then
+             bases(:,:) = 0.0
+             write(*,*) 'bases not ok!! collinear in',u,m
+             exit
+         endif
+      end do
+   end do
+   write(*,*) 'bases'
+   do m = 1,3
+      write(*,*) bases(m,:)
+   end do
+
+
+   !! now write coordinates of the event in this basis (maybe not here though?)
+
+
+write(*,*) repeat('- ',10)
+end do
+
 end program

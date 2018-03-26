@@ -207,7 +207,7 @@ module routines
 
 
   subroutine get_ev_coord( fd, ev_idx, ev_init_nat, ev_init_typ, ev_init_coord, &
-                                       ev_final_nat, ev_final_typ, ev_final_coord )
+                                       ev_final_nat, ev_final_typ, ev_final_coord, prob )
   !-------------------------------------
   ! extract the initial and final coordinates of the chosen event
   !-------------------------------------
@@ -223,10 +223,12 @@ module routines
    integer, intent(in) :: ev_idx
    character(len=256) :: line
    logical :: eof
+   real :: dum
    integer :: ievt, i
    integer, intent(out) :: ev_init_nat, ev_final_nat
    integer, allocatable, intent(out) :: ev_init_typ(:), ev_final_typ(:)
    real, allocatable, intent(out) :: ev_init_coord(:,:), ev_final_coord(:,:)
+   real, intent(out) :: prob
 
 !!!! this still relies on the events being tagged by numbers e.g. @3
 !! could introduce a counter on events...more simple
@@ -234,7 +236,10 @@ module routines
    do while (.not. eof)
      call read_line(fd,line,eof)
      line = trim ( adjustl (line) )
-     if ( line(1:1) == '@' ) read(line(2:),*) ievt
+     if ( line(1:1) == '@' ) then
+        read(line(2:),*) ievt
+        read(fd,*) dum, dum, prob
+     endif
      !!! get the wanted event given by ev_idx
      if (ievt == ev_idx) then
        do while (.not.eof)

@@ -16,8 +16,9 @@ program event_hash
 
  real, dimension(3,3) :: bases
  real, dimension(3) :: COM
- real :: proj,dum, dij
+ real :: proj,dum, dij, prob
  
+ character(10) :: ev_tag
  
  open(unit=444,file='events.in',status='old')
  open(unit=500,file='neighbor_table.dat',status='old',action='read')
@@ -43,7 +44,7 @@ do i = 1,nevt
 
    ! read event
    call get_ev_coord(444,i,ev_init_nat,ev_init_typ,ev_init_coord,&
-                          ev_final_nat,ev_final_typ,ev_final_coord)
+                          ev_final_nat,ev_final_typ,ev_final_coord,prob)
    write(*,*) 'ev tag', i
    write(*,*) 'ev init nat', ev_init_nat
    write(*,*) 'ev init typ', ev_init_typ
@@ -134,11 +135,6 @@ write(*,*) 'color is',color
 
 
 
-   deallocate(connect)
-   deallocate(lab)
-   deallocate(color)
-   deallocate(global_from_sorted_color)
-   deallocate(sorted_color_from_global)
 
   ! construct basis: first event vector is first basis, then do gramm-schmidt with 2nd
    ! and the third is cross(1,2)
@@ -182,8 +178,29 @@ write(*,*) 'chosen second vector index',m
    end do
 
 
+   !! write important discoveries to the ordered_events.dat file
+
+   !! the event tag
+   write(ev_tag,'(I8)') i
+   write(666,*) '@',trim(adjustl(ev_tag))
+   write(666,*) prob
+   write(666,*) ev_init_nat
+   write(666,*) kart_hash
+   write(666,'(I5,I5,I5,I5,I5,I5,I5,I5)') (lab(ii)+1, ii=1,ev_init_nat)
+   write(666,*) bases(1,:)
+   write(666,*) bases(2,:)
+   write(666,*) bases(3,:)
+   write(666,*) 
+
+
    !! now write coordinates of the event in this basis (maybe not here though?)
 
+   !! deallocate stuff for next event
+   deallocate(connect)
+   deallocate(lab)
+   deallocate(color)
+   deallocate(global_from_sorted_color)
+   deallocate(sorted_color_from_global)
 
 write(*,*) repeat('- ',10)
 end do
