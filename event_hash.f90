@@ -4,7 +4,7 @@ program event_hash
  use f90nautyinterf
 
  implicit none
- integer :: nevt, i, k, u, m,j,ii,jj
+ integer :: nevt, i, k, u, m,mm,j,ii,jj
  integer :: ev_init_nat, ev_final_nat
  integer, allocatable :: ev_init_typ(:), ev_final_typ(:)
  real, allocatable :: ev_init_coord(:,:), ev_final_coord(:,:)
@@ -16,7 +16,7 @@ program event_hash
 
  real, dimension(3,3) :: bases
  real, dimension(3) :: COM
- real :: proj,dum, dij, prob
+ real :: proj,proj2,n1nu,nunm,dum, dij, prob
  
  character(10) :: ev_tag
  
@@ -37,10 +37,10 @@ program event_hash
 
 
 
-!! for each event create connectivity matrix, fill color, generate hash
-call get_nevt(444,nevt)
+ !! for each event create connectivity matrix, fill color, generate hash, get basis
+ call get_nevt(444,nevt)
 
-do i = 1,nevt
+ do i = 1,nevt
 
    ! read event
    call get_ev_coord(444,i,ev_init_nat,ev_init_typ,ev_init_coord,&
@@ -53,11 +53,13 @@ do i = 1,nevt
       write(*,*) (ev_init_coord(k,j),j=1,3)
    end do
 
-   ! get center of mass for event
+
+
+!   ! get center of mass for event
+
    call get_center_of_topology(ev_init_coord,COM)
    write(*,*) 'ev COM',COM
-!   write(*,*) COM
-
+ 
    ! write init coords in terms of COM
    write(*,*) 'ev init coords in terms of COM'
    do k = 1,ev_init_nat
@@ -66,6 +68,8 @@ do i = 1,nevt
       ev_init_coord(k,3) = ev_init_coord(k,3) - COM(3)
       write(*,*) ev_init_coord(k,:)
    end do
+
+
 
 
    ! get hash: construct connectivity, color, ...
@@ -86,10 +90,10 @@ do i = 1,nevt
    call sort_property(ev_init_nat, ev_init_typ, color,&
                   global_from_sorted_color, sorted_color_from_global)
 
-write(*,*) 'sorted ev_init_typ',ev_init_typ
-write(*,*) 'global_from_sorted_color',global_from_sorted_color
-write(*,*) 'sorted_color_from_global',sorted_color_from_global 
-write(*,*) 'color is',color
+   write(*,*) 'sorted ev_init_typ',ev_init_typ
+   write(*,*) 'global_from_sorted_color',global_from_sorted_color
+   write(*,*) 'sorted_color_from_global',sorted_color_from_global 
+   write(*,*) 'color is',color
    ! fill connectivity matrix for n-vertex 
    do ii=1, ev_init_nat
       do jj=ii+1, ev_init_nat
@@ -133,16 +137,17 @@ write(*,*) 'color is',color
    write(*,*) "canon order, canon typ, and pos in such order"
 
    do ii=1,ev_init_nat
-     write(*,*) lab(ii)+1, ev_init_typ(sorted_color_from_global(lab(ii)+1)),(ev_init_coord(lab(ii)+1,k), k=1,3)
+     write(*,*) lab(ii)+1, ev_init_typ(sorted_color_from_global(lab(ii)+1)),&
+                           (ev_init_coord(lab(ii)+1,k), k=1,3)
    enddo
 
 
 
 
-  ! construct basis: first event vector is first basis, then do gramm-schmidt with 2nd
-   ! and the third is cross(1,2)
+   ! construct basis: first canocnical event vector is first basis,
+   ! then do gramm-schmidt with 2nd canonical that is not collinear
+   ! and the third is the next non-colliear vector (to both previous) do GS
    do u =2,ev_init_nat
-      proj = inner_prod(ev_init_coord(1,:),ev_init_coord(u,:))
       proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
       write(*,*) 'proj 1',u, 'is',proj
       if( abs(proj) > norm(ev_init_coord(lab(1)+1,:))*&
@@ -158,11 +163,39 @@ write(*,*) 'color is',color
    end do
    102 continue
 
-   !! remember the second vector index!
-write(*,*) 'chosen second vector index',m
-   call gram_schmidt(ev_init_coord(lab(1)+1,:), ev_init_coord(lab(m)+1,:), bases)
+   do u = m, ev_init_nat
+      proj = inner_prod(ev_init_coord(1,:),ev_init_coord(u,:))
+      proj2= inner_prod(ev_init_coord(m,:),ev_init_coord(u,:))
+      write(*,*) 'proj 1',u, 'is',proj
+      n1nu = norm(ev_init_coord(1,:))*norm(ev_init_coord(u,:))
+      nunm = norm(ev_init_coord(m,:))*norm(ev_init_coord(u,:))
+      if( abs(proj) > n1nu-1.0e-15 .and. &
+          abs(proj) < n1nu+1.0e-15) then
+         write(*,*) 'vectors 1 and',u,'are collinear!'
+         continue
+      elseif( abs(proj2) > nunm-1.0e-15 .and. &
+              abs(proj2) < nunm+1.0e-15) then
+         write(*,*) 'vectors',m,'and',u,'are collinear!'
+         continue
+      else
+         mm = u
+         write(*,*) 'here',mm
+         goto 103
+      endif
+   end do
+   103 continue
 
-   if( lab(m)+1 > ev_init_nat) bases(:,:) = 0.0
+
+   !! remember the second vector index!
+   write(*,*) 'chosen second vector index',m
+   write(*,*) 'chosen third vector index',mm
+   if( lab(m)+1 > ev_init_nat .or. lab(mm)+1 > ev_init_nat ) then
+     bases(:,:) = 0.0
+   else
+     call gram_schmidt(ev_init_coord(lab(1)+1,:), ev_init_coord(lab(m)+1,:),&
+                       ev_init_coord(lab(mm)+1,:), bases)
+   endif
+
    write(*,*) '(1,2)',inner_prod(bases(1,:),bases(2,:))
    write(*,*) '(1,3)',inner_prod(bases(1,:),bases(3,:))
    write(*,*) '(2,3)',inner_prod(bases(2,:),bases(3,:))
@@ -184,6 +217,7 @@ write(*,*) 'chosen second vector index',m
    end do
 
 
+
    !! write important discoveries to the ordered_events.dat file
 
    !! the event tag
@@ -202,6 +236,7 @@ write(*,*) 'chosen second vector index',m
    write(666,*) bases(2,:)
    write(666,*) bases(3,:)
    write(666,*) 
+   flush(666)
 
 
    !! now write coordinates of the event in this basis (maybe not here though?)
@@ -213,10 +248,8 @@ write(*,*) 'chosen second vector index',m
    deallocate(global_from_sorted_color)
    deallocate(sorted_color_from_global)
 
-write(*,*) repeat('- ',10)
-end do
-
-
+ write(*,*) repeat('- ',10)
+ end do
 
 
 

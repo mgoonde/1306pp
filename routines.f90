@@ -35,10 +35,10 @@ module routines
   end function norm
 
 
-  subroutine gram_schmidt(A,B,bases)
-  !! gives three bases vectors, third being cross A,B
+  subroutine gram_schmidt(A,B,C,bases)
+  !! gives three bases vectors
    implicit none
-   real, dimension(3), intent(in) :: A,B
+   real, dimension(3), intent(in) :: A,B,C
    real, dimension(3,3), intent(out) :: bases
    integer :: i,j
 
@@ -46,7 +46,12 @@ module routines
    bases(2,:) = B(:)
    bases(2,:) = bases(2,:) - inner_prod(B(:),bases(1,:))*bases(1,:)
    bases(2,:) = bases(2,:) / norm(bases(2,:))
-   bases(3,:) = cross(bases(1,:),bases(2,:))   
+!   bases(3,:) = cross(bases(1,:),bases(2,:))   
+!   bases(3,:) = bases(3,:) / norm(bases(3,:))
+   bases(3,:) = C(:)
+   bases(3,:) = bases(3,:) - inner_prod(C(:),bases(2,:))*bases(2,:) -&
+                             inner_prod(C(:),bases(1,:))*bases(1,:)
+!! apparently this normalization causes trouble
    bases(3,:) = bases(3,:) / norm(bases(3,:))
 
   end subroutine gram_schmidt
@@ -149,6 +154,46 @@ module routines
    cot = cot/nsites
 
   end subroutine get_center_of_topology
+
+
+  subroutine map_site(isite,Rcut,coords,map_coords,map_indices)
+   implicit none
+   !! extract coords within some Rcut of current site isite,
+   !! and write them in basis of local COM
+   integer :: n !! number of all coords
+   integer :: i,k !! counter
+   real :: dist
+   real, dimension(3) :: COM
+
+   real, dimension(:,:), intent(in) :: coords
+   real, intent(in) :: Rcut
+   integer, intent(in) :: isite
+   real, allocatable, intent(out) :: map_coords(:,:), map_indices(:)
+
+   n=size(coords,1)
+write(*,*) n
+   allocate(map_coords(1:n,1:3))
+   allocate(map_indices(1:n))
+   !! get distances, if within cutoff, remember the vector and its index
+   k=1
+   do i=1,n
+     dist = ( coords(isite,1) - coords(i,1) )**2 +&
+            ( coords(isite,2) - coords(i,2) )**2 +&
+            ( coords(isite,3) - coords(i,3) )**2
+     dist = sqrt(dist)
+     if (dist < Rcut ) then
+        map_coords(k,:) = coords(i,:)
+        map_indices(k) = i
+        k = k + 1
+     endif
+ 
+   end do
+   
+   call get_center_of_topology(map_coords,COM)
+   do i=1,k
+      map_coords(i,:) = map_coords(i,:) - COM(:)
+   end do
+  end subroutine map_site
 
 
   subroutine get_hash_prob(fd,hash1,hash2,prob,nevt)
