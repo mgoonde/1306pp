@@ -147,13 +147,15 @@ program event_hash
    ! construct basis: first canocnical event vector is first basis,
    ! then do gramm-schmidt with 2nd canonical that is not collinear
    ! and the third is the next non-colliear vector (to both previous) do GS
+   m=0
+   mm=0
    do u =2,ev_init_nat
       proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
       write(*,*) 'proj 1',u, 'is',proj
       if( abs(proj) > norm(ev_init_coord(lab(1)+1,:))*&
-                      norm(ev_init_coord(lab(u)+1,:))-1.0e-15 .and. &
+                      norm(ev_init_coord(lab(u)+1,:))-2.0e-8 .and. &
           abs(proj) < norm(ev_init_coord(lab(1)+1,:))*&
-                      norm(ev_init_coord(lab(u)+1,:))+1.0e-15) then
+                      norm(ev_init_coord(lab(u)+1,:))+2.0e-8) then
          write(*,*) 'vectors 1 and',u,'are collinear!'
          continue
       else
@@ -163,24 +165,34 @@ program event_hash
    end do
    102 continue
 
+write(*,*) 'now chooseing third vector'
    do u = m, ev_init_nat
-      proj = inner_prod(ev_init_coord(1,:),ev_init_coord(u,:))
-      proj2= inner_prod(ev_init_coord(m,:),ev_init_coord(u,:))
-      write(*,*) 'proj 1',u, 'is',proj
-      n1nu = norm(ev_init_coord(1,:))*norm(ev_init_coord(u,:))
-      nunm = norm(ev_init_coord(m,:))*norm(ev_init_coord(u,:))
-      if( abs(proj) > n1nu-1.0e-15 .and. &
-          abs(proj) < n1nu+1.0e-15) then
+write(*,*) 'm',m
+write(*,*) 'lab(m(+1',lab(m)+1
+write(*,*) 'u ',u
+write(*,*) 'lab(u)+1 ',lab(u)+1
+      proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
+      proj2= inner_prod(ev_init_coord(lab(m)+1,:),ev_init_coord(lab(u)+1,:))
+
+      n1nu = norm(ev_init_coord(lab(1)+1,:))*norm(ev_init_coord(lab(u)+1,:))
+      nunm = norm(ev_init_coord(lab(m)+1,:))*norm(ev_init_coord(lab(u)+1,:))
+write(*,*) 'proj 1 u',proj
+write(*,*) 'norm(1)*norm(u)',n1nu
+write(*,*) 'proj m u',proj2
+write(*,*) 'norm(m)*norm(u)',nunm
+      if( abs(proj) > n1nu-2.0e-8 .and. &
+          abs(proj) < n1nu+2.0e-8) then
+write(*,*) 'proj = n1nu'
          write(*,*) 'vectors 1 and',u,'are collinear!'
-         continue
-      elseif( abs(proj2) > nunm-1.0e-15 .and. &
-              abs(proj2) < nunm+1.0e-15) then
+      elseif( abs(proj2) > nunm-2.0e-8 .and. &
+              abs(proj2) < nunm+2.0e-8) then
+write(*,*) 'proj2 = nunm'
          write(*,*) 'vectors',m,'and',u,'are collinear!'
-         continue
       else
+write(*,*) 'third vector found,',u
          mm = u
-         write(*,*) 'here',mm
          goto 103
+         exit
       endif
    end do
    103 continue
@@ -204,8 +216,8 @@ program event_hash
       do m = 1,3
          if( m ==u ) cycle
          proj = inner_prod(bases(u,:),bases(m,:))
-         if( abs(proj) > 1.0e-15 ) then
-             bases(:,:) = 0.0
+         if( abs(proj) > 6.0e-8 ) then
+!             bases(:,:) = 0.0
              write(*,*) 'bases not ok!! collinear in',u,m
              exit
          endif
