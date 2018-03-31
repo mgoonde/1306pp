@@ -35,45 +35,76 @@ module routines
   end function norm
 
 
-  subroutine sort_to_canon(nat,coords,canon_labels)
+  subroutine sort_to_canon(nat,coords,coords1,canon_labels)
    ! sort vectors in a cluster into the canonical order
    implicit none
    integer, intent(in) :: nat
-   real, dimension(nat,3),intent(inout) :: coords
+   real, dimension(:,:),intent(in) :: coords
+   real, allocatable ,intent(out) :: coords1(:,:)
    integer, dimension(nat), intent(in) :: canon_labels
 
    real, dimension(nat,3) :: coords_copy
    integer :: i
   
-   coords_copy(:,:) = coords(:,:)
+   allocate(coords1(1:nat,1:3))
    do i = 1, nat
-      coords(i,:) = coords_copy( canon_labels( i ), : )
+     coords_copy(i,:) = coords(i,:)
+   end do
+
+   do i = 1, nat
+      coords1(i,:) = coords_copy( canon_labels( i ), : )
    end do
   end subroutine sort_to_canon
 
 
+  subroutine sort_to_canon_typ(nat,types,canon_labels)
+   ! sort types in a cluster into the canonical order
+   implicit none
+   integer, intent(in) :: nat
+   integer, dimension(nat),intent(inout) :: types
+   integer, dimension(nat), intent(in) :: canon_labels
+
+   real, dimension(nat) :: types_copy
+   integer :: i
+  
+   types_copy(:) = types(:)
+   do i = 1, nat
+      types(i) = types_copy( canon_labels( i ) )
+   end do
+  end subroutine sort_to_canon_typ
+
+
   subroutine gram_schmidt(bases)
   !! orthonormalizes the three vectors given in 'basis' matrix
+  !! -------------------
+  !! on input, vector 'bases' matrix contains noncollinear vectors
    implicit none
    real, dimension(3,3), intent(inout) :: bases
    integer :: i,j
    real, dimension(3) :: A,B,C
   
    A = bases(1,:)
+!write(*,*) 'from GS'
    B = bases(2,:)
    C = bases(3,:)
-
+!write(*,*) 'A',A
+!write(*,*) 'B',B
+!write(*,*) 'C',C
    bases(1,:) = A(:)/norm(A(:))
+!write(*,*) 'bases1',bases(1,:)
    bases(2,:) = B(:)
    bases(2,:) = bases(2,:) - inner_prod(B(:),bases(1,:))*bases(1,:)
    bases(2,:) = bases(2,:) / norm(bases(2,:))
+!write(*,*) 'bases2',bases(2,:)
 !   bases(3,:) = cross(bases(1,:),bases(2,:))   
 !   bases(3,:) = bases(3,:) / norm(bases(3,:))
    bases(3,:) = C(:)
-   bases(3,:) = bases(3,:) - inner_prod(C(:),bases(2,:))*bases(2,:) -&
-                             inner_prod(C(:),bases(1,:))*bases(1,:)
-!! apparently this normalization causes trouble
+   bases(3,:) = bases(3,:) - inner_prod(C(:),bases(2,:))*bases(2,:)! -&
+!                             inner_prod(C(:),bases(1,:))*bases(1,:)
+!! apparently this normalization causes trouble (not anymore!)
+!write(*,*) 'bases3',bases(3,:)
    bases(3,:) = bases(3,:) / norm(bases(3,:))
+!write(*,*) 'bases3',bases(3,:)
 
   end subroutine gram_schmidt
 
@@ -89,9 +120,10 @@ module routines
 
   integer :: i,ii, j, second_idx, third_idx
   real :: proj, proj2,n1n2,n3n2, margin
+  real, dimension(3) :: partial_vec
 
   !!!! this has to do with precision used
-  margin = 1.0e-8 
+  margin = 1.0e-1 
  
 ! write(*,*) 'coords from routine'
 ! do ii=1, n
@@ -128,6 +160,7 @@ module routines
 !write(*,*) vectors(2,:)
 
 !! finding third vector, should be non-collinear to first and second vector
+234 continue
   do i =second_idx, n
     !! projection (1, i)
     proj = inner_prod( vectors(1,:), coords(i,:) )
@@ -137,7 +170,8 @@ module routines
     n1n2 = norm( vectors(1,:) ) * norm( coords(i, :) )
     !! norm( 2 ) * norm( i )
     n3n2 = norm( vectors(2,:) ) * norm( coords(i, :) )
-    if((abs(abs(proj)-n1n2) .gt. margin) .and. (abs(abs(proj2)-n3n2) .gt. margin)) then
+    if((abs(abs(proj)-n1n2) .gt. margin) .and. &
+      (abs(abs(proj2)-n3n2) .gt. margin)) then
        third_idx = i
        exit
     endif
@@ -145,6 +179,30 @@ module routines
 !write(*,*) 'chosen third idx from routine', third_idx
   vectors(3,:) = coords( third_idx, : )
   vector_indeces(3) = third_idx
+
+!! sanity check third vector ( do partial GS ), reusing variables-dont trust names
+  partial_vec(:) = vectors(3,:) - inner_prod( vectors(3,:),vectors(1,:) )*vectors(1,:)
+  proj = inner_prod( partial_vec(:), vectors(2,:) )
+  n1n2 = norm(partial_vec)*norm(vectors(2,:))
+!write(*,*) 'sanity check vectors'
+!write(*,*) 'vector3',vectors(3,:)
+!write(*,*) 'vector2',vectors(2,:)
+!write(*,*) 'vector1',vectors(1,:)
+!write(*,*) 'partial vec 3- (3,1)1',partial_vec
+!write(*,*) 'proj',proj
+!write(*,*) 'n1n2',n1n2
+  if ( abs ( abs(proj) - n1n2 ) .lt. margin ) then
+   second_idx = second_idx + 1
+   goto 234
+  endif
+
+  partial_vec(:) = vectors(3,:) - inner_prod( vectors(3,:),vectors(2,:) )*vectors(2,:)
+  proj = inner_prod( partial_vec(:), vectors(1,:) )
+  n1n2 = norm(partial_vec)*norm(vectors(1,:))
+  if ( abs ( abs(proj) - n1n2 ) .lt. margin ) then
+   second_idx = second_idx + 1
+   goto 234
+  endif
 
  end subroutine
 
@@ -248,7 +306,7 @@ module routines
   end subroutine get_center_of_topology
 
 
-  subroutine map_site(isite,Rcut,coords,map_coords,map_indices)
+  subroutine map_site(isite,Rcut,coords,types,map_coords,map_types,map_indices,nat_in_map)
    implicit none
    !! extract coords within some Rcut of current site isite,
    !! and write them in basis of local COM
@@ -258,14 +316,22 @@ module routines
    real, dimension(3) :: COM
 
    real, dimension(:,:), intent(in) :: coords
+   integer, dimension(:), intent(in) :: types
    real, intent(in) :: Rcut
    integer, intent(in) :: isite
-   real, allocatable, intent(out) :: map_coords(:,:), map_indices(:)
+   real, allocatable, intent(out) :: map_coords(:,:)
+   integer, allocatable, intent(out) :: map_types(:), map_indices(:)
+   integer, intent(out) :: nat_in_map
 
    n=size(coords,1)
-write(*,*) n
+!do i =1,n
+!write(*,*) coords(i,:)
+!end do
    allocate(map_coords(1:n,1:3))
    allocate(map_indices(1:n))
+   allocate(map_types(1:n))
+   map_coords(:,:) = 0.0
+   map_indices(:) = 0
    !! get distances, if within cutoff, remember the vector and its index
    k=1
    do i=1,n
@@ -276,16 +342,65 @@ write(*,*) n
      if (dist < Rcut ) then
         map_coords(k,:) = coords(i,:)
         map_indices(k) = i
+        map_types(k) = types(i)
+!write(*,*) 'found neigh',k,'index',i,dist
         k = k + 1
      endif
  
    end do
+!write(*,*) 'map from map'
+!do i=1,n
+!write(*,*) map_coords(i,:)
+!end do
    
    call get_center_of_topology(map_coords,COM)
-   do i=1,k
+!write(*,*) 'COM from map',COM
+!write(*,*) 'k',k
+   do i=1,k-1
       map_coords(i,:) = map_coords(i,:) - COM(:)
    end do
+
+   do i=k,n
+     map_coords(i,:) = 9.9e90
+     map_types(i) = 999
+   end do
+
+   nat_in_map = k-1
   end subroutine map_site
+
+  
+  subroutine get_hash_prob_new(fd,hash,prob,event_nat)
+  !! read ordered events for hash and prob
+   implicit none
+   integer, intent(in) :: fd
+   integer, allocatable,intent(out) :: hash(:)
+   real,allocatable,intent(out) :: prob(:)
+   integer, allocatable, intent(out) :: event_nat(:)
+
+   logical :: eof
+   character(len=256) :: line
+   integer :: nevt,ievt
+
+   read(fd,*) nevt
+   allocate(hash(1:nevt))
+   allocate(prob(1:nevt))
+   allocate(event_nat(1:nevt))
+
+   eof = .false.
+   do while ( .not. eof )
+     call read_line( fd, line, eof )
+     line = trim ( adjustl ( line ) )
+     if ( line(1:1) == '@' ) then
+       line = trim ( adjustl ( line(2:) ) )   !! to get rid of '@' and possible spaces
+       read(line,*) ievt
+       read(fd,*) prob(ievt)
+       read(fd,*) event_nat(ievt)
+       read(fd,*) hash(ievt)
+     endif
+   end do
+!   rewind(fd)
+
+  end subroutine get_hash_prob_new
 
 
   subroutine get_hash_prob(fd,hash1,hash2,prob,nevt)

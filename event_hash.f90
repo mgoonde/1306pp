@@ -1,5 +1,6 @@
 program event_hash
 
+
  use routines
  use f90nautyinterf
 
@@ -8,6 +9,7 @@ program event_hash
  integer :: ev_init_nat, ev_final_nat
  integer, allocatable :: ev_init_typ(:), ev_final_typ(:)
  real, allocatable :: ev_init_coord(:,:), ev_final_coord(:,:)
+ real, allocatable :: ev_init_coord_ordered(:,:), ev_final_coord_ordered(:,:)
 
  integer, allocatable :: connect(:,:), lab(:), color(:)
  integer, allocatable :: global_from_sorted_color(:), sorted_color_from_global(:)
@@ -40,6 +42,7 @@ program event_hash
 
  !! for each event create connectivity matrix, fill color, generate hash, get basis
  call get_nevt(444,nevt)
+ write(666,*) nevt
 
  do i = 1,nevt
 
@@ -84,6 +87,11 @@ program event_hash
 
    allocate(global_from_sorted_color(1:ev_init_nat))
    allocate(sorted_color_from_global(1:ev_init_nat))
+
+!  allocate(ev_init_coord_ordered(1:ev_init_nat,3))
+!  ev_init_coord_ordered(:,:) = 0.0
+!  allocate(ev_final_coord_ordered(1:ev_init_nat,3))
+!  ev_final_coord_ordered(:,:) = 0.0
 
    global_from_sorted_color(:) = 0
    sorted_color_from_global(:) = 0
@@ -151,12 +159,12 @@ end do
 write(*,*) 'canon order',lab
 write(*,*) lab
 
-   call sort_to_canon(ev_init_nat, ev_init_coord, lab )
-   call sort_to_canon(ev_init_nat, ev_final_coord, lab)
+   call sort_to_canon(ev_init_nat, ev_init_coord,ev_init_coord_ordered, lab )
+   call sort_to_canon(ev_init_nat, ev_final_coord,ev_final_coord_ordered, lab)
 
 write(*,*) 'coords after sort to canon'
 do ii = 1, ev_init_nat
-  write(*,*) ii,ev_init_coord(ii,:)
+  write(*,*) ii,ev_init_typ(ii),ev_init_coord_ordered(ii,:)
 end do
 
    ! construct basis: first canocnical event vector is first basis,
@@ -212,18 +220,18 @@ end do
 !  end do
 !  103 continue
 
-!  do u = 1,3
-!  write(*,*) 'noncoll. vectors before check',u,bases(u,:)
-!  enddo
  write(*,*) repeat('-',60)
-   call find_noncollinear_vectors(ev_init_nat,ev_init_coord,bases,basis_indeces)
-!  do u=1,3
-!  write(*,*) 'noncoll. vectors after check',u,bases(u,:)
-!  enddo
+  do u = 1,3
+   write(*,*) 'noncoll. vectors before check',u,bases(u,:)
+  enddo
+   call find_noncollinear_vectors(ev_init_nat,ev_init_coord_ordered,bases,basis_indeces)
+  do u=1,3
+   write(*,*) 'noncoll. vectors after check',u,bases(u,:)
+  enddo
    call gram_schmidt(bases)
-!  do ii=1,3
-!   write(*,*) bases(ii,:)
-!  end do
+  do ii=1,3
+   write(*,*) bases(ii,:)
+  end do
  write(*,*) repeat('-',60)
 
 !  !! remember the second vector index!
@@ -278,13 +286,15 @@ end do
 !   write(666,*) bases(3,:)
 !   write(666,*)
 !  do ii=1,ev_init_nat
-!    call cart_to_crist(ev_init_coord(ii,:),bases(:,:))
-!    write(666,*) ev_init_coord(ii,:)
+!    call cart_to_crist(ev_init_coord_ordered(ii,:),bases(:,:))
+!    write(666,*) ev_init_coord_ordered(ii,:)
 !  end do
-!   write(666,*) 
+   write(666,*) 
    do ii=1, ev_init_nat
-     call cart_to_crist(ev_final_coord(ii,:),bases(:,:))
-     write(666,*) ev_final_coord(ii,:)
+     call cart_to_crist(ev_final_coord_ordered(ii,:),bases(:,:))
+!     write(666,*) ev_init_typ(sorted_color_from_global(lab(ii))), &
+     write(666,*) ev_init_typ(ii), &
+                   ev_final_coord_ordered(ii,:)
    end do
    write(666,*)
    flush(666)
