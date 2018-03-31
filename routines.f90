@@ -35,12 +35,33 @@ module routines
   end function norm
 
 
-  subroutine gram_schmidt(A,B,C,bases)
-  !! gives three bases vectors
+  subroutine sort_to_canon(nat,coords,canon_labels)
+   ! sort vectors in a cluster into the canonical order
    implicit none
-   real, dimension(3), intent(in) :: A,B,C
-   real, dimension(3,3), intent(out) :: bases
+   integer, intent(in) :: nat
+   real, dimension(nat,3),intent(inout) :: coords
+   integer, dimension(nat), intent(in) :: canon_labels
+
+   real, dimension(nat,3) :: coords_copy
+   integer :: i
+  
+   coords_copy(:,:) = coords(:,:)
+   do i = 1, nat
+      coords(i,:) = coords_copy( canon_labels( i ), : )
+   end do
+  end subroutine sort_to_canon
+
+
+  subroutine gram_schmidt(bases)
+  !! orthonormalizes the three vectors given in 'basis' matrix
+   implicit none
+   real, dimension(3,3), intent(inout) :: bases
    integer :: i,j
+   real, dimension(3) :: A,B,C
+  
+   A = bases(1,:)
+   B = bases(2,:)
+   C = bases(3,:)
 
    bases(1,:) = A(:)/norm(A(:))
    bases(2,:) = B(:)
@@ -55,6 +76,77 @@ module routines
    bases(3,:) = bases(3,:) / norm(bases(3,:))
 
   end subroutine gram_schmidt
+
+
+ subroutine find_noncollinear_vectors(n,coords,vectors, vector_indeces)
+ !! finds the first three noncollinear vectors from the 'coords' list - these vectors 
+ !! are then used to form the orthonormal basis
+  implicit none
+  integer, intent(in) :: n
+  real, dimension(n,3),intent(in) :: coords
+  real, dimension(3,3),intent(out) :: vectors
+  integer, dimension(3), intent(out) :: vector_indeces
+
+  integer :: i,ii, j, second_idx, third_idx
+  real :: proj, proj2,n1n2,n3n2, margin
+
+  !!!! this has to do with precision used
+  margin = 1.0e-8 
+ 
+! write(*,*) 'coords from routine'
+! do ii=1, n
+!  write(*,*) coords(ii,:)
+! end do
+
+!! first vector is the first in list
+  vectors(1,:) = coords(1,:)
+  vector_indeces(1) = 1
+!write(*,*) 'found first vector:'
+!write(*,*) vectors(1,:)
+  second_idx = 0
+  third_idx = 0
+
+!! finding the second vector
+!! vectors are collinear when scalar productof two vectors equals the product of their
+!! norms.
+  do i = 2, n
+    !! projection (1, i)
+    proj = inner_prod( vectors(1,:), coords(i,:) )
+!write(*,*) 'proj 1,',i,proj
+    !! norm( 1 ) * norm( i )
+    n1n2 = norm( vectors(1,:) ) * norm( coords(i,:) )
+!write(*,*) 'n1n2',n1n2
+!write(*,*) 'proj-n1n2',abs(proj)-n1n2
+    if( abs( abs( proj ) - n1n2) .gt. margin ) then
+       second_idx = i
+       exit
+    endif
+  end do
+  vectors(2,:) = coords(second_idx,:)
+  vector_indeces(2) = second_idx
+!write(*,*) 'chosen second idx from routine',second_idx
+!write(*,*) vectors(2,:)
+
+!! finding third vector, should be non-collinear to first and second vector
+  do i =second_idx, n
+    !! projection (1, i)
+    proj = inner_prod( vectors(1,:), coords(i,:) )
+    !! projection (2, i)
+    proj2 = inner_prod( vectors(2,:), coords(i,:) )
+    !! norm( 1 ) * norm( i )
+    n1n2 = norm( vectors(1,:) ) * norm( coords(i, :) )
+    !! norm( 2 ) * norm( i )
+    n3n2 = norm( vectors(2,:) ) * norm( coords(i, :) )
+    if((abs(abs(proj)-n1n2) .gt. margin) .and. (abs(abs(proj2)-n3n2) .gt. margin)) then
+       third_idx = i
+       exit
+    endif
+  end do
+!write(*,*) 'chosen third idx from routine', third_idx
+  vectors(3,:) = coords( third_idx, : )
+  vector_indeces(3) = third_idx
+
+ end subroutine
 
 
   subroutine read_line(fd, line, end_of_file)

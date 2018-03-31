@@ -16,6 +16,7 @@ program event_hash
 
  real, dimension(3,3) :: bases
  real, dimension(3) :: COM
+ integer, dimension(3) :: basis_indeces
  real :: proj,proj2,n1nu,nunm,dum, dij, prob
  
  character(10) :: ev_tag
@@ -141,92 +142,119 @@ program event_hash
                            (ev_init_coord(lab(ii)+1,k), k=1,3)
    enddo
 
+   
+write(*,*) 'coords before sort to canon'
+do ii = 1, ev_init_nat
+  write(*,*) ii,ev_init_coord(ii,:)
+  lab(ii) = lab(ii)+1
+end do
+write(*,*) 'canon order',lab
+write(*,*) lab
 
+   call sort_to_canon(ev_init_nat, ev_init_coord, lab )
+   call sort_to_canon(ev_init_nat, ev_final_coord, lab)
 
+write(*,*) 'coords after sort to canon'
+do ii = 1, ev_init_nat
+  write(*,*) ii,ev_init_coord(ii,:)
+end do
 
    ! construct basis: first canocnical event vector is first basis,
    ! then do gramm-schmidt with 2nd canonical that is not collinear
    ! and the third is the next non-colliear vector (to both previous) do GS
-   m=0
-   mm=0
-   do u =2,ev_init_nat
-      proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
-      write(*,*) 'proj 1',u, 'is',proj
-      if( abs(proj) > norm(ev_init_coord(lab(1)+1,:))*&
-                      norm(ev_init_coord(lab(u)+1,:))-2.0e-8 .and. &
-          abs(proj) < norm(ev_init_coord(lab(1)+1,:))*&
-                      norm(ev_init_coord(lab(u)+1,:))+2.0e-8) then
-         write(*,*) 'vectors 1 and',u,'are collinear!'
-         continue
-      else
-         m = u
-         goto 102
-      endif
-   end do
-   102 continue
+!  m=0
+!  mm=0
+!  do u =2,ev_init_nat
+!     proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
+!     write(*,*) 'proj 1',u, 'is',proj
+!     if( abs(proj) > norm(ev_init_coord(lab(1)+1,:))*&
+!                     norm(ev_init_coord(lab(u)+1,:))-2.0e-8 .and. &
+!         abs(proj) < norm(ev_init_coord(lab(1)+1,:))*&
+!                     norm(ev_init_coord(lab(u)+1,:))+2.0e-8) then
+!        write(*,*) 'vectors 1 and',u,'are collinear!'
+!        continue
+!     else
+!        m = u
+!        goto 102
+!     endif
+!  end do
+!  102 continue
 
-write(*,*) 'now chooseing third vector'
-   do u = m, ev_init_nat
-write(*,*) 'm',m
-write(*,*) 'lab(m(+1',lab(m)+1
-write(*,*) 'u ',u
-write(*,*) 'lab(u)+1 ',lab(u)+1
-      proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
-      proj2= inner_prod(ev_init_coord(lab(m)+1,:),ev_init_coord(lab(u)+1,:))
+!write(*,*) 'now chooseing third vector'
+!  do u = m, ev_init_nat
+!write(*,*) 'm',m
+!write(*,*) 'lab(m(+1',lab(m)+1
+!write(*,*) 'u ',u
+!write(*,*) 'lab(u)+1 ',lab(u)+1
+!     proj = inner_prod(ev_init_coord(lab(1)+1,:),ev_init_coord(lab(u)+1,:))
+!     proj2= inner_prod(ev_init_coord(lab(m)+1,:),ev_init_coord(lab(u)+1,:))
 
-      n1nu = norm(ev_init_coord(lab(1)+1,:))*norm(ev_init_coord(lab(u)+1,:))
-      nunm = norm(ev_init_coord(lab(m)+1,:))*norm(ev_init_coord(lab(u)+1,:))
-write(*,*) 'proj 1 u',proj
-write(*,*) 'norm(1)*norm(u)',n1nu
-write(*,*) 'proj m u',proj2
-write(*,*) 'norm(m)*norm(u)',nunm
-      if( abs(proj) > n1nu-2.0e-8 .and. &
-          abs(proj) < n1nu+2.0e-8) then
-write(*,*) 'proj = n1nu'
-         write(*,*) 'vectors 1 and',u,'are collinear!'
-      elseif( abs(proj2) > nunm-2.0e-8 .and. &
-              abs(proj2) < nunm+2.0e-8) then
-write(*,*) 'proj2 = nunm'
-         write(*,*) 'vectors',m,'and',u,'are collinear!'
-      else
-write(*,*) 'third vector found,',u
-         mm = u
-         goto 103
-         exit
-      endif
-   end do
-   103 continue
+!     n1nu = norm(ev_init_coord(lab(1)+1,:))*norm(ev_init_coord(lab(u)+1,:))
+!     nunm = norm(ev_init_coord(lab(m)+1,:))*norm(ev_init_coord(lab(u)+1,:))
+!write(*,*) 'proj 1 u',proj
+!write(*,*) 'norm(1)*norm(u)',n1nu
+!write(*,*) 'proj m u',proj2
+!write(*,*) 'norm(m)*norm(u)',nunm
+!     if( abs(proj) > n1nu-2.0e-8 .and. &
+!         abs(proj) < n1nu+2.0e-8) then
+!write(*,*) 'proj = n1nu'
+!        write(*,*) 'vectors 1 and',u,'are collinear!'
+!     elseif( abs(proj2) > nunm-2.0e-8 .and. &
+!             abs(proj2) < nunm+2.0e-8) then
+!write(*,*) 'proj2 = nunm'
+!        write(*,*) 'vectors',m,'and',u,'are collinear!'
+!     else
+!write(*,*) 'third vector found,',u
+!        mm = u
+!        goto 103
+!        exit
+!     endif
+!  end do
+!  103 continue
 
+!  do u = 1,3
+!  write(*,*) 'noncoll. vectors before check',u,bases(u,:)
+!  enddo
+ write(*,*) repeat('-',60)
+   call find_noncollinear_vectors(ev_init_nat,ev_init_coord,bases,basis_indeces)
+!  do u=1,3
+!  write(*,*) 'noncoll. vectors after check',u,bases(u,:)
+!  enddo
+   call gram_schmidt(bases)
+!  do ii=1,3
+!   write(*,*) bases(ii,:)
+!  end do
+ write(*,*) repeat('-',60)
 
-   !! remember the second vector index!
-   write(*,*) 'chosen second vector index',m
-   write(*,*) 'chosen third vector index',mm
-   if( lab(m)+1 > ev_init_nat .or. lab(mm)+1 > ev_init_nat ) then
-     bases(:,:) = 0.0
-   else
-     call gram_schmidt(ev_init_coord(lab(1)+1,:), ev_init_coord(lab(m)+1,:),&
-                       ev_init_coord(lab(mm)+1,:), bases)
-   endif
+!  !! remember the second vector index!
+!  write(*,*) 'chosen second vector index',m
+!  write(*,*) 'chosen third vector index',mm
+!  if( lab(m)+1 > ev_init_nat .or. lab(mm)+1 > ev_init_nat ) then
+!    bases(:,:) = 0.0
+!  else
+!     call gram_schmidt(ev_init_coord(lab(1)+1,:), ev_init_coord(lab(m)+1,:),&
+!                       ev_init_coord(lab(mm)+1,:), bases)
+!  endif
 
-   write(*,*) '(1,2)',inner_prod(bases(1,:),bases(2,:))
-   write(*,*) '(1,3)',inner_prod(bases(1,:),bases(3,:))
-   write(*,*) '(2,3)',inner_prod(bases(2,:),bases(3,:))
-   ! check bases collinearity
-   do u=1,3
-      do m = 1,3
-         if( m ==u ) cycle
-         proj = inner_prod(bases(u,:),bases(m,:))
-         if( abs(proj) > 6.0e-8 ) then
+!  write(*,*) '(1,2)',inner_prod(bases(1,:),bases(2,:))
+!  write(*,*) '(1,3)',inner_prod(bases(1,:),bases(3,:))
+!  write(*,*) '(2,3)',inner_prod(bases(2,:),bases(3,:))
+!  ! check bases collinearity
+!  do u=1,3
+!     do m = 1,3
+!        if( m ==u ) cycle
+!        proj = inner_prod(bases(u,:),bases(m,:))
+!        if( abs(proj) > 6.0e-8 ) then
 !             bases(:,:) = 0.0
-             write(*,*) 'bases not ok!! collinear in',u,m
-             exit
-         endif
-      end do
-   end do
-   write(*,*) 'bases'
-   do m = 1,3
-      write(*,*) bases(m,:)
-   end do
+!            write(*,*) 'bases not ok!! collinear in',u,m
+!            exit
+!        endif
+!     end do
+!  end do
+!  write(*,*) 'bases'
+!  do m = 1,3
+!     write(*,*) bases(m,:)
+!  end do
 
 
 
@@ -242,12 +270,23 @@ write(*,*) 'third vector found,',u
    !! hash
    write(666,*) kart_hash
    !! event vectors in canonical order
-   write(666,'(I5,I5,I5,I5,I5,I5,I5,I5)') (lab(ii)+1, ii=1,ev_init_nat)
+   write(666,'(I5,I5,I5,I5,I5,I5,I5,I5)') (lab(ii), ii=1,ev_init_nat)
+   write(666,'(I5,I5,I5)') basis_indeces(1), basis_indeces(2), basis_indeces(3)
    !! bases vectors
-   write(666,*) bases(1,:)
-   write(666,*) bases(2,:)
-   write(666,*) bases(3,:)
-   write(666,*) 
+!   write(666,*) bases(1,:)
+!   write(666,*) bases(2,:)
+!   write(666,*) bases(3,:)
+!   write(666,*)
+!  do ii=1,ev_init_nat
+!    call cart_to_crist(ev_init_coord(ii,:),bases(:,:))
+!    write(666,*) ev_init_coord(ii,:)
+!  end do
+!   write(666,*) 
+   do ii=1, ev_init_nat
+     call cart_to_crist(ev_final_coord(ii,:),bases(:,:))
+     write(666,*) ev_final_coord(ii,:)
+   end do
+   write(666,*)
    flush(666)
 
 
