@@ -35,6 +35,91 @@ module routines
   end function norm
 
 
+  subroutine order_by_distance(nat,coords,A)
+  !! generates an order list stored in first element of A. second is the distance.
+  !! does not actually impose any order.
+   implicit none
+   integer, intent(in) :: nat
+   real, intent(in) :: coords(:,:)
+   real, allocatable, intent(out) :: A(:,:)
+
+   integer :: i
+   real :: dum
+
+   allocate(A(1:nat,1:2))
+   A(:,:) = 0.0
+!   do i =1, ev_init_nat
+!    write(*,*) (A(i,j),j=1,2)
+!   end do
+   do i=1,nat
+     dum = ( coords(1,1) - coords(i,1) )**2 +&
+           ( coords(1,2) - coords(i,2) )**2 +&
+           ( coords(1,3) - coords(i,3) )**2
+     A(i,2) = dum**0.5
+     A(i,1) = int(i)
+
+   end do
+!   do i =1, ev_init_nat
+!    write(*,*) (A(i,j),j=1,2)
+!   end do
+   !call Pancake_sort(A(:,4))
+   call sort_row(A)
+!   write(*,*)
+!   do i =1, ev_init_nat
+!    write(*,*) (A(i,j),j=1,2)
+!   end do
+
+  end subroutine order_by_distance
+
+
+   subroutine sort_row(A)
+   ! sorts rows in matrix A, by the second element, from low to high
+    implicit none
+    real,intent(inout) :: A(:,:)
+    real:: buf(2)
+    integer :: nsize, irow, krow
+
+    nsize = size(A,1)
+
+    do irow = 1, nsize
+        krow = minloc( A( irow:nsize, 2 ), dim=1 ) + irow - 1
+
+        buf( : )     = A( irow, : )
+        A( irow, : ) = A( krow, : )
+        A( krow, : ) = buf( : )
+    enddo
+   end subroutine sort_row
+
+
+subroutine Pancake_sort(a)
+ 
+  real, intent(in out) :: a(:)
+  integer :: i, maxpos
+ 
+  write(*,*) a
+  do i = size(a), 2, -1
+ 
+! Find position of max number between index 1 and i
+    maxpos = maxloc(a(1:i), 1)
+ 
+! is it in the correct position already?   
+    if (maxpos == i) cycle
+ 
+! is it at the beginning of the array? If not flip array section so it is
+    if (maxpos /= 1) then
+      a(1:maxpos) = a(maxpos:1:-1)
+      write(*,*) a
+    end if
+ 
+! Flip array section to get max number to correct position      
+    a(1:i) = a(i:1:-1)
+    write(*,*) a
+  end do
+ 
+end subroutine Pancake_sort
+
+
+
   subroutine sort_to_canon(nat,coords,coords1,canon_labels)
    ! sort vectors in a cluster into the canonical order
    implicit none
