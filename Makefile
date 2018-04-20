@@ -3,7 +3,7 @@ objects = routines.o maintest.o
 flags = -O
 double = -fdefault-real-8
 
-all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x 
+all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
 
 ffnautyex1_sestic.o:
 	gcc -c ./ctofinterf/ffnautyex1_sestic.c -I./nauty/nauty26r11/
@@ -28,6 +28,10 @@ event_hash.x: routines.o f90nautyinterf.mod sort_index.o event_hash.o ffnautyex1
 
 cycles.x: routines.o f90nautyinterf.mod sort_index.o cycles.o ffnautyex1_sestic.o
 	$(compiler) $(double) -o cycles.x routines.o cycles.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a
+
+hashing_sites.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o hashing_sites.o
+	$(compiler) $(double) -o hashing_sites.x routines.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a hashing_sites.o
+
 
 clean: 
 	rm -f *.o

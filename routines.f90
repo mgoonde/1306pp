@@ -35,6 +35,257 @@ module routines
   end function norm
 
 
+  real function atang(d)
+  !! atan function taking into account NaN and Infinity issues
+   implicit none
+   real :: d, pi
+   
+   pi = 4.0*atan(1.0)
+
+   !! if d = NaN (not even equal to itself) then it comes from 1/0
+   if (d /= d) then
+     atang = 0.0
+   !! is infinity
+   elseif ( d**2+1 == d ) then
+     atang = pi/2.0
+   !! is -infinity
+   elseif (d**2+1 == -d ) then
+     atang = -pi/2.0
+   else
+     atang = atan(d)
+   endif
+
+  end function atang
+
+
+  subroutine make_connectivity(nat,coords,types,color_cutoff,connect,lab,color)
+   implicit none
+   integer, intent(in) :: nat
+   real, intent(in) :: coords(:,:)
+   integer, intent(inout) :: types(:)
+   real, intent(in) :: color_cutoff(:,:)
+   integer, allocatable, intent(out) :: connect(:,:)
+   integer, allocatable, intent(out) :: lab(:), color(:)
+   integer, allocatable :: sorted_from_global_color(:), &
+                           global_from_sorted_color(:)
+   real :: dij
+   integer :: i, j, k
+   
+   allocate( connect(1:nat, 1:nat) )
+   connect(:,:) = 0
+   allocate(lab(1:nat))
+   lab(:) = 0
+   allocate(color(1:nat))
+   color(:) = 0
+   allocate(sorted_from_global_color(1:nat))
+   allocate(global_from_sorted_color(1:nat))
+
+   call sort_property(nat,types,color,global_from_sorted_color,sorted_from_global_color)
+   do i=1,nat
+     do j=i+1, nat
+       dij=0.0
+       do k = 1,3
+         dij = dij + (coords(j,k)-coords(i,k))**2
+       end do
+       dij = sqrt(dij)
+       connect(i,j) = NINT( 0.5*erfc(dij-color_cutoff( types(i),types(j) )))
+       connect(j,i) = NINT( 0.5*erfc(dij-color_cutoff( types(j),types(i) )))
+     end do
+   end do
+
+   do i=1,nat
+     lab(i)=global_from_sorted_color(i)-1
+   enddo
+  
+   call sort_to_canon_typ(nat,types,sorted_from_global_color)
+
+  end subroutine make_connectivity
+
+
+   subroutine sort_property(n,vertex_property,color,&
+                            unsorted_from_sorted,sorted_from_unsorted)
+   implicit none
+
+   integer, intent(inout):: vertex_property(1:n)
+   integer, intent(out) :: sorted_from_unsorted(1:n), unsorted_from_sorted(1:n)
+   integer, intent(out) :: color(1:n)
+
+   integer, allocatable :: copy_vertex_property(:)
+   integer :: i,j,k, temp, n
+
+   !write(*,*) "from sort_property index"
+
+   n=size(vertex_property,1)
+
+   !write(*,*) "n=", n
+   allocate(copy_vertex_property(1:n))
+
+   copy_vertex_property(:)=vertex_property(:)
+
+   do j=1,n
+     sorted_from_unsorted(j)=0
+     unsorted_from_sorted(j)=0
+   enddo
+
+   do i=1,n
+    do j=1,n-1
+     if(vertex_property(j)>vertex_property(j+1)) then
+      temp=vertex_property(j)
+      vertex_property(j)=vertex_property(j+1)
+      vertex_property(j+1)=temp
+     endif
+    enddo
+   enddo
+
+   k=1
+   do i=1,n
+     do j=1,n
+       if((vertex_property(k)==copy_vertex_property(j)).and.&
+                                  (sorted_from_unsorted(j)==0)) then
+         sorted_from_unsorted(j)=k
+         unsorted_from_sorted(k)=j
+         k=k+1
+       endif
+     enddo
+   enddo
+
+   !write(*,*) "original vertex color, actual vertex color, sorted from unsorted"
+   !write(*,*) ""
+   !do i=1,n
+   !write(*,*) copy_vertex_property(i), vertex_property(i),sorted_from_unsorted(i), &
+   !     unsorted_from_sorted(i)
+   !enddo
+
+   color(:)=vertex_property(:)
+
+   do i=1,n-1
+     if(vertex_property(i)/=vertex_property(i+1)) color(i)=0
+   enddo
+   color(n)=0
+   !do i=1,n
+   !  write(*,*) "ooo", vertex_property(i), color(i)
+   !enddo 
+
+   deallocate(copy_vertex_property)
+end subroutine
+
+ 
+
+  subroutine rotate(A,x,y,z)
+  !! rotation matrix: R A = A'
+  !! x, y, z are rotation angles around each axis
+   implicit none
+   real, dimension(3), intent(inout) :: A
+   real, intent(in) :: z, x, y
+   real, dimension(3,3) :: R
+
+   R(1,1) = cos(z)*cos(y) - cos(x)*sin(z)*sin(y)
+   R(1,2) = -cos(z)*sin(y) - cos(x)*sin(z)*cos(y)
+   R(1,3) = sin(z)*sin(x)
+   R(2,1) = sin(z)*cos(y) + cos(x)*cos(z)*sin(y)
+   R(2,2) = -sin(z)*sin(y) + cos(x)*cos(z)*cos(y)
+   R(2,3) = -cos(z)*sin(x)
+   R(3,1) = sin(y)*sin(x)
+   R(3,2) = cos(y)*sin(x)
+   R(3,3) = cos(x)
+
+   A = matmul(R,A)
+  end subroutine rotate
+
+
+  subroutine set_color_cutoff(color_cutoff)
+  !! set the color_cutoff matrix
+  implicit none
+  real, allocatable, intent(out) :: color_cutoff(:,:)
+  integer :: n_color
+  integer :: i, j
+  real :: dij
+
+  open(unit=555,file='neighbor_table.dat',status='old',action='read')
+  n_color = 3
+  allocate(color_cutoff(1:n_color,1:n_color))
+  color_cutoff(:,:) = 0.0
+  read(555,*)
+  do while(.true.)
+    read(555,*,end=200) i, j, dij
+    color_cutoff(i,j) = dij
+    color_cutoff(j,i) = dij
+  end do
+  200 continue
+  end subroutine set_color_cutoff
+
+
+  subroutine gen_basis(nat,coords,basis)
+  !! find a "typical vector" of the system, 
+  !! sum of all contributions of each components is the typical vector's component in
+  !! that direction. Then find typical rotation around each axis and apply it to the 
+  !! typical vector around each corresponding axis separately. This should give 4 vectors:
+  !! namely, the typical one, the one rotated around z, y, and x. Could check which 
+  !! combination is ok for basis.
+
+  !! unused, philosophy of basis has been changed
+   implicit none
+   integer, intent(in) :: nat
+   real, intent(in) :: coords(:,:)
+   real, intent(out) :: basis(3,3)
+   real :: typical(3), typical_o(3)
+   real :: dum, pi2, thetaz, thetax, thetay
+   integer :: i
+
+ !! pi/2
+  pi2 = 2.0*atan(1.0)
+
+ !! sum all components in the cluster
+   do i=1, nat
+     typical(1) = typical(1) + coords(i,1)
+     typical(2) = typical(2) + coords(i,2)
+     typical(3) = typical(3) + coords(i,3)
+   end do
+   typical = typical/norm(typical)
+   typical_o(:) = typical(:)
+  !! find rotation in the xy plane (around z axis):
+  !! theta = pi/2 - sum_i ( atan( y_i / x_i ) )    ( what about abs(atan()) ;; and 1/nat?)
+   thetaz = 0.0
+   do i=1,nat
+     dum = coords(i,2) / coords(i,1)
+     dum = pi2 - atang(dum)
+     thetaz = thetaz+dum
+   end do
+
+  !! find rotation in the yz plane (around x axis):
+  !! theta = pi/2 - sum_i ( atan( z_i / y_i ) )    ( what about abs(atan()) ;; and 1/nat?)
+   thetax = 0.0
+   do i=1,nat
+     dum = coords(i,3) / coords(i,2)
+     dum = pi2 - atang(dum)
+     thetax = thetax+dum
+   end do
+  
+  !! find rotation in the xz plane (around y axis):
+  !! theta = pi/2 - sum_i ( atan( z_i / x_i ) )    ( what about abs(atan()) ;; and 1/nat?)
+   thetay = 0.0
+   do i=1,nat
+     dum = coords(i,3) / coords(i,1)
+     dum = pi2 - atang(dum)
+     thetay = thetay+dum
+   end do
+
+  !! rotate typical around each axis
+   call rotate(typical,0.0,0.0,thetaz)
+   basis(1,:) = typical(:)
+   typical = typical_o
+
+   call rotate(typical,thetax,0.0,0.0)
+   basis(2,:) = typical(:)
+   typical = typical_o
+
+   call rotate(typical,0.0,thetay,0.0)
+   basis(3,:) = typical(:)
+   typical = typical_o
+
+  end subroutine gen_basis
+
+
   subroutine order_by_distance(nat,coords,A)
   !! generates an order list stored in first element of A. second is the distance.
   !! does not actually impose any order.
@@ -120,24 +371,28 @@ end subroutine Pancake_sort
 
 
 
-  subroutine sort_to_canon(nat,coords,coords1,canon_labels)
+  subroutine sort_to_canon(nat,coords,types,canon_labels)
    ! sort vectors in a cluster into the canonical order
    implicit none
    integer, intent(in) :: nat
-   real, dimension(:,:),intent(in) :: coords
-   real, allocatable ,intent(out) :: coords1(:,:)
+   real, dimension(:,:),intent(inout) :: coords
+   integer, dimension(:),intent(inout) :: types
+!   real, allocatable ,intent(out) :: coords1(:,:)
    integer, dimension(nat), intent(in) :: canon_labels
 
    real, dimension(nat,3) :: coords_copy
+   real, dimension(nat) :: types_copy
    integer :: i
   
-   allocate(coords1(1:nat,1:3))
+!   allocate(coords1(1:nat,1:3))
    do i = 1, nat
      coords_copy(i,:) = coords(i,:)
+     types_copy(i) = types(i)
    end do
 
    do i = 1, nat
-      coords1(i,:) = coords_copy( canon_labels( i ), : )
+      coords(i,:) = coords_copy( canon_labels( i ), : )
+      types(i) = types_copy( canon_labels( i ) )
    end do
   end subroutine sort_to_canon
 
@@ -391,12 +646,12 @@ end subroutine Pancake_sort
   end subroutine get_center_of_topology
 
 
-  subroutine map_site(isite,Rcut,coords,types,map_coords,map_types,map_indices,nat_in_map)
+  subroutine map_site(isite,Rcut,coords,types,map_coords,map_types,map_indices,nbvertex)
    implicit none
    !! extract coords within some Rcut of current site isite,
    !! and write them in basis of local COM
    integer :: n !! number of all coords
-   integer :: i,k !! counter
+   integer :: i,k,j !! counter
    real :: dist
    real, dimension(3) :: COM
 
@@ -406,26 +661,44 @@ end subroutine Pancake_sort
    integer, intent(in) :: isite
    real, allocatable, intent(out) :: map_coords(:,:)
    integer, allocatable, intent(out) :: map_types(:), map_indices(:)
-   integer, intent(out) :: nat_in_map
+   integer, intent(out) :: nbvertex
 
    n=size(coords,1)
 !do i =1,n
 !write(*,*) coords(i,:)
 !end do
-   allocate(map_coords(1:n,1:3))
-   allocate(map_indices(1:n))
-   allocate(map_types(1:n))
-   map_coords(:,:) = 0.0
-   map_indices(:) = 0
-   !! get distances, if within cutoff, remember the vector and its index
-   k=1
+
+   ! set numbr of vertex within rcut
+   nbvertex = 1
    do i=1,n
+     if (i==isite) cycle
      dist = ( coords(isite,1) - coords(i,1) )**2 +&
             ( coords(isite,2) - coords(i,2) )**2 +&
             ( coords(isite,3) - coords(i,3) )**2
      dist = sqrt(dist)
-     if (dist < Rcut ) then
-        map_coords(k,:) = coords(i,:)
+     nbvertex = nbvertex + NINT(0.5*erfc(dist - Rcut))
+! write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
+   end do
+write(*,*) 'nbvertex',nbvertex
+
+   allocate(map_coords(1:nbvertex,1:3))
+   allocate(map_indices(1:nbvertex))
+   allocate(map_types(1:nbvertex))
+   map_coords(:,:) = 0.0
+   map_indices(:) = isite
+   map_types(:) = types(isite)
+   !! get distances, if within cutoff, remember the vector and its index
+   k=2
+   do i=1,n
+     if (i==isite) cycle
+     dist = ( coords(isite,1) - coords(i,1) )**2 +&
+            ( coords(isite,2) - coords(i,2) )**2 +&
+            ( coords(isite,3) - coords(i,3) )**2
+     dist = sqrt(dist)
+     if (dist .le. Rcut ) then
+        map_coords(k,:) = coords(i,:)-coords(isite,:)
+!write(*,*) 'from routine'
+!write(*,*) 'map coords',k,(map_coords(k,j),j=1,2)
         map_indices(k) = i
         map_types(k) = types(i)
 !write(*,*) 'found neigh',k,'index',i,dist
@@ -438,19 +711,16 @@ end subroutine Pancake_sort
 !write(*,*) map_coords(i,:)
 !end do
    
-   call get_center_of_topology(map_coords,COM)
+!   call get_center_of_topology(map_coords,COM)
+
 !write(*,*) 'COM from map',COM
 !write(*,*) 'k',k
-   do i=1,k-1
-      map_coords(i,:) = map_coords(i,:) - COM(:)
-   end do
 
-   do i=k,n
-     map_coords(i,:) = 9.9e90
-     map_types(i) = 999
-   end do
+!   do i=1,k-1
+!      map_coords(i,:) = map_coords(i,:) - COM(:)
+!   end do
 
-   nat_in_map = k-1
+!   nat_in_map = k-1
   end subroutine map_site
 
   
