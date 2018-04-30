@@ -17,7 +17,7 @@ program event_hash
  integer :: hash_val1, hash_val2, hash_val3, kart_hash, ev_init_nb
 
  real, dimension(3,3) :: bases
- real, dimension(3) :: COM
+ real, dimension(3) :: COM, mu, sigma
  integer, dimension(3) :: basis_indeces
 real, allocatable :: A(:,:), ev_init_map(:,:)
 integer, allocatable :: B(:), ev_init_map_indices(:), ev_init_map_types(:)
@@ -38,6 +38,8 @@ real, dimension(3) :: vec
  call get_nevt(444,nevt)
  write(666,*) nevt
 
+ !! write important discoveries to the ordered_events.dat file (unit=666)
+
  DO i = 1,nevt
 
    ! read event
@@ -50,6 +52,12 @@ real, dimension(3) :: vec
    do k = 1, ev_init_nat
       write(*,*) ev_init_typ(k), (ev_init_coord(k,j),j=1,3)
    end do
+
+   !! write the event tag
+   write(ev_tag,'(I8)') i
+   write(666,*) '@',trim(adjustl(ev_tag))
+   !! write the probability of this event
+   write(666,*) prob
 
    !! map the event around the first(!!) vector
    call map_site(1,Rcut,ev_init_coord,ev_init_typ,ev_init_map,ev_init_map_types,ev_init_map_indices,ev_init_nb)
@@ -76,6 +84,9 @@ real, dimension(3) :: vec
    write(*,*) "hash",kart_hash
    write(*,*)
 
+   !! write the hash
+   write(666,*) kart_hash
+
    write(*,*) 'canon order is'
    do k=1,ev_init_nb
       lab(k) = lab(k) + 1
@@ -91,46 +102,158 @@ real, dimension(3) :: vec
      write(*,*) ev_init_map_types(lab(k)), (ev_init_map(lab(k),j),j=1,3)
    end do
 
+   write(*,*)
+   write(*,*) 'neighbour matrix'
+   call find_neighbour_matrix(ev_init_map,4,connect,lab)
+
    write(*,*) "connect in canon"
    do k=1, ev_init_nat
     write(*,"(15i4)") (connect(lab(k),j), j=1,ev_init_nat)
    enddo
 
+!   !! find the first basis vector: first nonzero vector in the canon order
+!   k = 1
+!   do while(.true.)
+!     bases(1,:) = ev_init_map(lab(k),:)
+!     if( norm( bases(1,:) ) .lt. 1.0e-3 ) then
+!       k = k+1
+!      else
+!        exit
+!     endif
+! write(*,*) 'found basis1',k
+! 
+!     !! second basis vector is the first noncollinear vector that is connected to
+!     !! the first basis vector.
+!     !! vectors are collinear when scalar product equals the product of norms
+!     do ii=1, ev_init_nb
+!       if ( ii .eq. k ) cycle
+!       if ( connect( lab(k), lab(ii) ) .eq. 0 ) cycle
+!       !! projection and norm
+!       proj = inner_prod( bases(1,:), ev_init_map( lab(ii), :))
+!       n1n2 = norm( bases(1,:)) * norm(ev_init_map(lab(ii),:))
+!       if( abs( abs(proj) - n1n2 ) .gt. 1.0e-1) then
+!         bases(2,:) = ev_init_map( lab(ii), :)
+! write(*,*) 'found basis2',ii
+!       endif
+!       if( norm(bases(2,:)) .lt. 1.0e-3 ) then
+!         k = k+1
+!       else
+!         exit
+!       endif
+!     end do
+!   end do
+
    !! find the first basis vector: first nonzero vector in the canon order
    k = 1
    do while(.true.)
      bases(1,:) = ev_init_map(lab(k),:)
-     if( norm( bases(1,:) ) .lt. 1.0e-3 ) then
-       k = k+1
-     else
-       exit
+
+     if( norm(bases(1,:)) .lt. 1.0e-3 ) then
+       k = k + 1
      endif
+ 
+     ii = 1
+     do while(.true.)
+       if( ii .eq. k ) ii = ii + 1
+       if( connect(lab(k),lab(ii)) .eq. 0 ) ii = ii + 1
+       bases(2,:) = ev_init_map(lab(ii),:)
+       if( norm(bases(2,:)) .lt. 1.0e-3 ) ii = ii + 1
+       proj = inner_prod( bases(1,:), bases(2,:) )
+       n1n2 = norm( bases(1,:) )*norm( bases(2,:) )
+       if( abs( abs(proj) - n1n2 ) .gt. 1.0e-1 ) exit
+     end do
+     exit
+
    end do
+
 
    write(*,*) 'basis vectors'
    write(*,*) bases(1,:)
-
-   !! second basis vector is the first noncollinear vector that is connected to
-   !! the first basis vector.
-   !! vectors are collinear when scalar product equals the product of norms
-   do ii=1, ev_init_nb
-     if ( ii .eq. k ) cycle
-     if ( connect( lab(k), lab(ii) ) .eq. 0 ) cycle
-     !! projection and norm
-     proj = inner_prod( bases(1,:), ev_init_map( lab(ii), :))
-     n1n2 = norm( bases(1,:)) * norm(ev_init_map(lab(ii),:))
-     if( abs( abs(proj) - n1n2 ) .gt. 1.0e-1) then
-       bases(2,:) = ev_init_map( lab(ii), :)
-       exit
-     endif
-   end do
-   
    write(*,*) bases(2,:)
 
    !! third basis vector is cross(1,2)
    bases(3,:) = cross( bases(1,:), bases(2,:) )
    
    write(*,*) bases(3,:)
+  
+   write(*,*)
+
+   !! convert to that basis
+   write(*,*) 'map in its basis'
+   do ii =1, ev_init_nb
+     call cart_to_crist(ev_init_map(ii,:), bases)
+     write(*,*) ev_init_map(ii,:)
+   end do
+
+   !! get dispersion along each component of this basis
+   mu(:) = 0.0
+   do ii = 1, ev_init_nb
+     do k=1,3
+      mu(k) = mu(k) + ev_init_map(ii,k)
+     end do
+   end do
+   mu = mu/ev_init_nb
+   write(*,*) 'sum'
+   write(*,*) mu(1), mu(2), mu(3)
+   sigma(:) = 0.0
+   do ii = 1, ev_init_nb
+     do k = 1,3
+      sigma(k) = sigma(k)+ (ev_init_map(ii,k) - mu(k))**2
+     end do
+   end do
+   sigma = sqrt(sigma/(ev_init_nb))
+   write(*,*) 'sigma'
+   write(*,*) sigma(1), sigma(2), sigma(3)
+   !! write the average value on each component
+   write(666,*) mu(1), mu(2), mu(3)
+   !! write the dispersion componenets for each axes
+   write(666,*) sigma(1), sigma(2), sigma(3)
+
+   !! rotate
+   write(*,*) 'rotating'
+   do ii =1, ev_init_nb
+      call rotate(ev_init_map(ii,:),1.9635,1.9635,1.9635)
+      write(*,*) ev_init_map(ii,:)
+   end do
+   !! get dispersion again
+   mu(:) = 0.0
+   do ii = 1, ev_init_nb
+     do k=1,3
+      mu(k) = mu(k) + ev_init_map(ii,k)
+     end do
+   end do
+   mu = mu/ev_init_nb
+   write(*,*) 'rotated sum'
+   write(*,*) mu(1), mu(2), mu(3)
+   sigma(:) = 0.0
+   do ii = 1, ev_init_nb
+     do k = 1,3
+      sigma(k) = sigma(k)+ (ev_init_map(ii,k) - mu(k))**2
+     end do
+   end do
+   sigma = sqrt(sigma/(ev_init_nb))
+   write(*,*) 'rotated sigma'
+   write(*,*) sigma(1), sigma(2), sigma(3)
+   !! write the average value of each rotated component
+   write(666,*) mu(1), mu(2), mu(3)
+   !! write the rotated dispersion componenets for each axes
+   write(666,*) sigma(1), sigma(2), sigma(3)
+
+   !! rotate back
+   write(*,*) 'rotating back to orig'
+   do ii=1,ev_init_nb
+     call rotate(ev_init_map(ii,:),-1.9635,-1.9635,-1.9635)
+     write(*,*) ev_init_map(ii,:)
+   end do
+
+ 
+   !! numbr of atoms in map
+   write(666,*) ev_init_nb
+   !! initial types and positions in own basis
+   do ii=1,ev_init_nb
+     write(666,*) ev_init_map_types(ii),ev_init_map(ii,:)
+   end do
+
 
  END DO
 

@@ -58,6 +58,31 @@ module routines
   end function atang
 
 
+  subroutine find_neighbour_matrix(coords,nbvertex,connect,lab)
+  !! find the nearest neighbours, by chemistry there are maximum 12
+   implicit none
+   real, intent(in) :: coords(:,:)
+   integer, intent(in) :: nbvertex
+   integer, intent(in) :: lab(:)
+   integer, parameter :: n=12
+   integer, dimension(n,3) :: neigh
+   integer, intent(in) :: connect(:,:)
+   integer :: k, i
+   
+   neigh(:,:) = 0.0
+   k = 0
+   do i = 1, nbvertex
+     k = k + connect(1, lab(i) )
+     if ( connect(1,lab(i)) == 0 ) cycle
+     neigh(k,:) = connect(1,lab(i))*coords(lab(i),:)
+   end do
+
+   do i = 1,12
+     write(*,*) neigh(i,:)
+   end do
+  end subroutine find_neighbour_matrix
+
+
   subroutine make_connectivity(nat,coords,types,color_cutoff,connect,lab,color)
    implicit none
    integer, intent(in) :: nat
@@ -90,6 +115,7 @@ module routines
        dij = sqrt(dij)
        connect(i,j) = NINT( 0.5*erfc(dij-color_cutoff( types(i),types(j) )))
        connect(j,i) = NINT( 0.5*erfc(dij-color_cutoff( types(j),types(i) )))
+  write(*,*) i,j,dij,connect(i,j)
      end do
    end do
 
@@ -649,7 +675,7 @@ end subroutine Pancake_sort
   subroutine map_site(isite,Rcut,coords,types,map_coords,map_types,map_indices,nbvertex)
    implicit none
    !! extract coords within some Rcut of current site isite,
-   !! and write them in basis of local COM
+   !! and write them in basis of this (first atom)
    integer :: n !! number of all coords
    integer :: i,k,j !! counter
    real :: dist

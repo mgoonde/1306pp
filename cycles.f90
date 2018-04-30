@@ -25,25 +25,13 @@
 
   open(unit=111,file='site.in',status='old')
   open(unit=444,file='events.in',status='old')
-  open(unit=500,file='neighbor_table.dat',status='old',action='read')
 
  call set_random_seed()
 
  !!!----------------------------
  !!! set up color cutoff matrix
  !!!----------------------------
- n_color = 3
- allocate(color_cutoff(1:n_color,1:n_color))
- color_cutoff(:,:) = 0.0
- read(500,*)
- do while(.true.)
-   read(500,*,end=200) i, j, dum
-   color_cutoff(i,j) = dum
-   color_cutoff(j,i) = dum
- end do
- !200 write(*,*) 'read neighbour', (color_cutoff(i,:),i=1,4)
- 200 continue
-
+ call set_color_cutoff(color_cutoff)
 
  !!! cutoff to create a map - is not the same as color cutoff matrix, should be larger
   Rcut = 1.1
@@ -194,10 +182,10 @@ write(*,*) 'nevt',nevt
    end do
  end do
 
-! do i=1,size(prob_M)
-!   write(*,'(A4,F5.2)') 'prob',prob_M(i)
-!   write(*,'(A2,I2)') 'on',ev_site(i)
-! end do
+ do i=1,size(prob_M)
+   write(*,'(A4,F5.2)') 'prob',prob_M(i)
+   write(*,'(A2,I2)') 'on',ev_site(i)
+ end do
 
   call random_number(rnd)
   call choose_p(prob_M,size(prob_M),rnd,idx)
@@ -231,10 +219,10 @@ write(*,*) 'nevt',nevt
 
    call sort_property(n_in_map, map_types, color, global_from_sorted_color,&
                          sorted_from_global_color)
-!   write(*,*)'sorted map_types',map_types
-!   write(*,*) 'global_from_sorted_color',global_from_sorted_color
-!   write(*,*) 'sorted_color_from_global',sorted_from_global_color
-!   write(*,*) 'color is',color
+   write(*,*)'sorted map_types',map_types
+   write(*,*) 'global_from_sorted_color',global_from_sorted_color
+   write(*,*) 'sorted_color_from_global',sorted_from_global_color
+   write(*,*) 'color is',color
 
    do i=1, n_in_map
       do j=i+1, n_in_map
@@ -295,7 +283,8 @@ write(*,*) 'nevt',nevt
  !write(*,*) 'canon order',lab
  
    !! reorder cluster into canon 
-   call sort_to_canon(n_in_map,map_coords,map_ordered_coords,lab)
+!   call sort_to_canon(n_in_map,map_coords,map_ordered_coords,lab)
+
 ! write(*,*) 'coords after canon'
 ! do i =1,n_in_map
 !  write(*,*) map_types(i), map_ordered_coords(i,:)
