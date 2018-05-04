@@ -3,13 +3,14 @@ objects = routines.o maintest.o
 flags = -O
 double = -fdefault-real-8
 
-all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
+#all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
+all: f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
 
 ffnautyex1_sestic.o:
 	gcc -c ./ctofinterf/ffnautyex1_sestic.c -I./nauty/nauty26r11/
 
-maintest.x : $(objects)
-	$(compiler) $(double) -o maintest.x $(objects)
+#maintest.x : $(objects)
+#	$(compiler) $(double) -o maintest.x $(objects)
 
 %.o: %.f90
 	$(compiler) $(double) ${flags} -c $<

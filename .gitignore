@@ -1,8 +1,10 @@
 *.out
 *.mod
 *.o
+*.a
 *.x
 *.xyz
 *.dSYM
 *.swp
 *.so
+*nauty*

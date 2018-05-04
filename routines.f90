@@ -58,14 +58,14 @@ module routines
   end function atang
 
 
-  subroutine find_neighbour_matrix(coords,nbvertex,connect,lab)
+  subroutine find_neighbour_matrix(coords,nbvertex,connect,lab,neigh)
   !! find the nearest neighbours, by chemistry there are maximum 12
    implicit none
    real, intent(in) :: coords(:,:)
    integer, intent(in) :: nbvertex
    integer, intent(in) :: lab(:)
    integer, parameter :: n=12
-   integer, dimension(n,3) :: neigh
+   real, dimension(n,3), intent(out) :: neigh
    integer, intent(in) :: connect(:,:)
    integer :: k, i
    
@@ -77,10 +77,23 @@ module routines
      neigh(k,:) = connect(1,lab(i))*coords(lab(i),:)
    end do
 
-   do i = 1,12
-     write(*,*) neigh(i,:)
-   end do
   end subroutine find_neighbour_matrix
+
+
+  subroutine get_angle(r1,r2,theta)
+  !! get angle from vector r1 to r2
+   implicit none
+   real,intent(in) :: r1(3), r2(3)
+   real, intent(out) :: theta
+
+   real :: nrm1, nrm2, proj
+
+   nrm1 = norm(r1)
+   nrm2 = norm(r2)
+   proj = inner_prod( r1, r2 )
+   theta = acos( proj / ( nrm1*nrm2 ) )
+
+  end subroutine get_angle
 
 
   subroutine make_connectivity(nat,coords,types,color_cutoff,connect,lab,color)

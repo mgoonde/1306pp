@@ -24,6 +24,7 @@ integer, allocatable :: B(:), ev_init_map_indices(:), ev_init_map_types(:)
  real :: proj,proj2,n1n2,nunm,dum, dij, prob
  real :: theta, phi, Rcut
 real, dimension(3) :: vec 
+ real :: neigh(12,3)
 
  character(10) :: ev_tag
  
@@ -104,7 +105,12 @@ real, dimension(3) :: vec
 
    write(*,*)
    write(*,*) 'neighbour matrix'
-   call find_neighbour_matrix(ev_init_map,4,connect,lab)
+   call find_neighbour_matrix(ev_init_map,4,connect,lab,neigh)
+   do k = 1,12
+     write(*,*) neigh(k,:)
+   end do
+   call get_angle(neigh(1,:),neigh(2,:),theta)
+   write(*,*) 'angle neigh1, neigh2',theta
 
    write(*,*) "connect in canon"
    do k=1, ev_init_nat
