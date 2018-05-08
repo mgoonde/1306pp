@@ -25,6 +25,7 @@ integer, allocatable :: B(:), ev_init_map_indices(:), ev_init_map_types(:)
  real :: theta, phi, Rcut
 real, dimension(3) :: vec 
  real :: neigh(12,3)
+ real :: theta1, theta2, theta3
 
  character(10) :: ev_tag
  
@@ -33,7 +34,7 @@ real, dimension(3) :: vec
 
  call set_color_cutoff(color_cutoff) 
 
- Rcut = 1.0
+ Rcut = 2.0
 
  !! for each event create connectivity matrix, fill color, generate hash, get basis
  call get_nevt(444,nevt)
@@ -68,7 +69,9 @@ real, dimension(3) :: vec
    end do
 
    write(*,*)
-   call make_connectivity(ev_init_nb,ev_init_map,ev_init_map_types,color_cutoff,connect,lab,color)
+write(*,*) 'typs before conn;',ev_init_map_types
+   call make_connectivity(ev_init_nat,ev_init_map,ev_init_map_types,color_cutoff,connect,lab,color)
+write(*,*) 'typs after conn;',ev_init_map_types
 
    write(*,*) "connect"
    do ii=1, ev_init_nat
@@ -104,13 +107,19 @@ real, dimension(3) :: vec
    end do
 
    write(*,*)
+   neigh(:,:) = 0.0
    write(*,*) 'neighbour matrix'
-   call find_neighbour_matrix(ev_init_map,4,connect,lab,neigh)
+   call find_neighbour_matrix(ev_init_map,ev_init_nb,connect,lab,neigh)
    do k = 1,12
      write(*,*) neigh(k,:)
    end do
-   call get_angle(neigh(1,:),neigh(2,:),theta)
-   write(*,*) 'angle neigh1, neigh2',theta
+!   call get_angle(neigh(1,:),neigh(3,:),theta)
+!   write(*,*) 'angle neigh1, neigh3',theta
+!   call get_angle(neigh(3,:),neigh(1,:),theta)
+!   write(*,*) 'angle neigh3, neigh1',theta
+
+   write(*,*) 'atan2'
+   call get_atan2(neigh,theta1,theta2,theta3)
 
    write(*,*) "connect in canon"
    do k=1, ev_init_nat
@@ -149,29 +158,43 @@ real, dimension(3) :: vec
 !     end do
 !   end do
 
-   !! find the first basis vector: first nonzero vector in the canon order
-   k = 1
-   do while(.true.)
-     bases(1,:) = ev_init_map(lab(k),:)
+!   !! find the first basis vector: first nonzero vector in the canon order
+!   k = 1
+!   do while(.true.)
+!     bases(1,:) = ev_init_map(lab(k),:)
+!
+!     if( norm(bases(1,:)) .lt. 1.0e-3 ) then
+!       k = k + 1
+!     endif
+! 
+!     ii = 1
+!     do while(.true.)
+!       if( ii .eq. k ) ii = ii + 1
+!       if( connect(lab(k),lab(ii)) .eq. 0 ) ii = ii + 1
+!       bases(2,:) = ev_init_map(lab(ii),:)
+!       if( norm(bases(2,:)) .lt. 1.0e-3 ) ii = ii + 1
+!       proj = inner_prod( bases(1,:), bases(2,:) )
+!       n1n2 = norm( bases(1,:) )*norm( bases(2,:) )
+!       if( abs( abs(proj) - n1n2 ) .gt. 1.0e-1 ) exit
+!       if( ii .eq. ev_init_nb ) exit
+!     end do
+!     exit
+!
+!   end do
 
-     if( norm(bases(1,:)) .lt. 1.0e-3 ) then
-       k = k + 1
-     endif
- 
-     ii = 1
-     do while(.true.)
-       if( ii .eq. k ) ii = ii + 1
-       if( connect(lab(k),lab(ii)) .eq. 0 ) ii = ii + 1
-       bases(2,:) = ev_init_map(lab(ii),:)
-       if( norm(bases(2,:)) .lt. 1.0e-3 ) ii = ii + 1
-       proj = inner_prod( bases(1,:), bases(2,:) )
-       n1n2 = norm( bases(1,:) )*norm( bases(2,:) )
-       if( abs( abs(proj) - n1n2 ) .gt. 1.0e-1 ) exit
-     end do
-     exit
 
+   !! first basis vector for event is the first neighbor vector
+   bases(1,:) = neigh(1,:)
+
+   !! second basis vector is the first noncollinear neighbour
+   do ii=2, ev_init_nb-1
+    proj = inner_prod( bases(1,:), neigh(ii,:) )
+    n1n2 = norm(bases(1,:))*norm(neigh(ii,:))
+    if ( n1n2 - proj .gt. 1.0e-1 ) then
+      bases(2,:) = neigh(ii,:)
+      exit
+    endif
    end do
-
 
    write(*,*) 'basis vectors'
    write(*,*) bases(1,:)

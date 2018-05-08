@@ -72,6 +72,7 @@ module routines
    neigh(:,:) = 0.0
    k = 0
    do i = 1, nbvertex
+!     if ( i == nbvertex ) exit 
      k = k + connect(1, lab(i) )
      if ( connect(1,lab(i)) == 0 ) cycle
      neigh(k,:) = connect(1,lab(i))*coords(lab(i),:)
@@ -96,10 +97,34 @@ module routines
   end subroutine get_angle
 
 
+  subroutine get_atan2(neigh,thetayx,thetaxz,thetazy)
+  !! get all combinations of atan2 angles of r2 - r1
+   real, intent(in) :: neigh(:,:)
+   real, intent(out) :: thetayx, thetaxz, thetazy
+ 
+   integer :: i, j
+   real, dimension(3) :: R
+
+   do i = 1, 12
+     if ( norm( neigh(i, :) ) == 0.0 ) cycle
+     do j = 1, 12
+       if( norm( neigh(j, :) ) == 0.0 ) cycle
+       R = neigh(j, :) - neigh(i,:)
+       if ( norm( R ) == 0.0 ) cycle
+       thetayx = atan2( R(2), R(1) )
+       thetaxz = atan2( R(1), R(3) )
+       thetazy = atan2( R(3), R(2) )
+  write(*,*) 'i, j, yx, xz, zy'
+  write(*,*) i, j, thetayx, thetaxz, thetazy
+     end do
+   end do 
+  end subroutine get_atan2
+
+
   subroutine make_connectivity(nat,coords,types,color_cutoff,connect,lab,color)
    implicit none
    integer, intent(in) :: nat
-   real, intent(in) :: coords(:,:)
+   real, intent(inout) :: coords(:,:)
    integer, intent(inout) :: types(:)
    real, intent(in) :: color_cutoff(:,:)
    integer, allocatable, intent(out) :: connect(:,:)
@@ -119,6 +144,18 @@ module routines
    allocate(global_from_sorted_color(1:nat))
 
    call sort_property(nat,types,color,global_from_sorted_color,sorted_from_global_color)
+write(*,*) 'sort color',color
+write(*,*) 'global from sorted',global_from_sorted_color
+write(*,*) 'sorted from global',sorted_from_global_color
+ write(*,*) 'before sort'
+   do i = 1, nat
+    write(*,*) types(i), coords(i,:)
+   end do
+   call sort_to_order(nat,coords,global_from_sorted_color)
+ write(*,*) 'after sort'
+   do i = 1, nat
+    write(*,*) types(i), coords(i,:)
+   end do
    do i=1,nat
      do j=i+1, nat
        dij=0.0
@@ -136,8 +173,12 @@ module routines
      lab(i)=global_from_sorted_color(i)-1
    enddo
   
-   call sort_to_canon_typ(nat,types,sorted_from_global_color)
-
+!   call sort_to_order_typ(nat,types,sorted_from_global_color)
+!   call sort_to_order(nat,coords,sorted_from_global_color)
+write(*,*) 'end of make conn'
+do i=1, nat
+ write(*,*) types(i),coords(i,:)
+end do
   end subroutine make_connectivity
 
 
@@ -178,7 +219,9 @@ module routines
 
    k=1
    do i=1,n
+     if ( k > n) exit
      do j=1,n
+       if (k > n) exit
        if((vertex_property(k)==copy_vertex_property(j)).and.&
                                   (sorted_from_unsorted(j)==0)) then
          sorted_from_unsorted(j)=k
@@ -206,10 +249,9 @@ module routines
    !enddo 
 
    deallocate(copy_vertex_property)
-end subroutine
+  end subroutine
 
  
-
   subroutine rotate(A,x,y,z)
   !! rotation matrix: R A = A'
   !! x, y, z are rotation angles around each axis
@@ -410,33 +452,27 @@ end subroutine Pancake_sort
 
 
 
-  subroutine sort_to_canon(nat,coords,types,canon_labels)
+  subroutine sort_to_order(nat,coords,canon_labels)
    ! sort vectors in a cluster into the canonical order
    implicit none
    integer, intent(in) :: nat
    real, dimension(:,:),intent(inout) :: coords
-   integer, dimension(:),intent(inout) :: types
-!   real, allocatable ,intent(out) :: coords1(:,:)
    integer, dimension(nat), intent(in) :: canon_labels
 
-   real, dimension(nat,3) :: coords_copy
-   real, dimension(nat) :: types_copy
+   real, dimension(nat,3)  :: coords_copy
    integer :: i
-  
-!   allocate(coords1(1:nat,1:3))
+   
    do i = 1, nat
      coords_copy(i,:) = coords(i,:)
-     types_copy(i) = types(i)
    end do
 
    do i = 1, nat
       coords(i,:) = coords_copy( canon_labels( i ), : )
-      types(i) = types_copy( canon_labels( i ) )
    end do
-  end subroutine sort_to_canon
+  end subroutine sort_to_order
 
 
-  subroutine sort_to_canon_typ(nat,types,canon_labels)
+  subroutine sort_to_order_typ(nat,types,canon_labels)
    ! sort types in a cluster into the canonical order
    implicit none
    integer, intent(in) :: nat
@@ -450,7 +486,7 @@ end subroutine Pancake_sort
    do i = 1, nat
       types(i) = types_copy( canon_labels( i ) )
    end do
-  end subroutine sort_to_canon_typ
+  end subroutine sort_to_order_typ
 
 
   subroutine gram_schmidt(bases)
@@ -703,9 +739,9 @@ end subroutine Pancake_sort
    integer, intent(out) :: nbvertex
 
    n=size(coords,1)
-!do i =1,n
-!write(*,*) coords(i,:)
-!end do
+do i =1,n
+write(*,*) coords(i,:)
+end do
 
    ! set numbr of vertex within rcut
    nbvertex = 1
@@ -716,7 +752,7 @@ end subroutine Pancake_sort
             ( coords(isite,3) - coords(i,3) )**2
      dist = sqrt(dist)
      nbvertex = nbvertex + NINT(0.5*erfc(dist - Rcut))
-! write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
+ write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
    end do
 write(*,*) 'nbvertex',nbvertex
 

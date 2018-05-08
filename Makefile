@@ -1,6 +1,6 @@
 compiler = gfortran
 objects = routines.o maintest.o
-flags = -O
+flags = -O -fbounds-check
 double = -fdefault-real-8
 
 #all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
