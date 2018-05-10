@@ -8,7 +8,7 @@
 #include "nauty.h"   /* which includes <stdio.h> and other system files */
 #include "naututil.h" /* include hashgraph */
 
-void ffnautyex1_sestic(int *coco, int connect[*coco][*coco], int flab[*coco], int color[*coco], int *hash_val1, int *hash_val2, int *hash_val3)
+void ffnautyex1_sestic(int *coco, int connect[*coco][*coco], int flab[*coco], int color[*coco], int color_true[*coco], int *hash_val1, int *hash_val2, int *hash_val3)
 {
     graph g[MAXN*MAXM], canong[MAXN*MAXN];
     int lab[MAXN],ptn[MAXN],orbits[MAXN];
@@ -63,7 +63,7 @@ void ffnautyex1_sestic(int *coco, int connect[*coco][*coco], int flab[*coco], in
          for (v = 0; v < n; ++v)  {
       	    ptn[v]=color[v];
             lab[v]=flab[v];
-          /*  printf("%d -- %d \n",lab[v],ptn[v]); */
+            printf("%d -- %d \n",lab[v],ptn[v]); 
            }
       
 /*        printf("Generators for Aut(C[%d]) (from C):\n",n);  */
@@ -86,20 +86,27 @@ void ffnautyex1_sestic(int *coco, int connect[*coco][*coco], int flab[*coco], in
            flab[v] = lab[v];
 /*           printf("%d,%d \n",v, flab[v]);  */
         }
-/*        printf("canong (from C)\n");
+        printf("canong (from C)\n");
         for (v=0; v<m*(size_t)n; ++v) {
            printf("%lu \n",canong[v]);
         }
-        printf("colors\n");
+
+        printf("colors in nauty format\n");
         for (v=0;v<n; ++v) {
            printf("%d \n", color[v]);
-        }  */
+        }  
 
 /* Get the hash of color vector, call is: listhash(vector, nx, key), where
    nx is the element up to which to get the hash. Also, which key do we use?? */
+        printf("colors in true format\n");
+        for (v=0;v<n; ++v) {
+           printf("%d \n", color_true[v]);
+        }
 /*        printf("listhash\n"); */
-        colorhash = listhash(color,n,489317L);
+        colorhash = listhash(color_true,n,489317L);
 /*        printf("%lu \n",colorhash); */
+        printf("listhash\n"); 
+        printf("%lu \n",colorhash); 
 
 /*        printf("hash1 \n");  */
 /*       printf("%lu \n",zseed);  */

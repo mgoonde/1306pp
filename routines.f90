@@ -114,8 +114,8 @@ module routines
        thetayx = atan2( R(2), R(1) )
        thetaxz = atan2( R(1), R(3) )
        thetazy = atan2( R(3), R(2) )
-  write(*,*) 'i, j, yx, xz, zy'
-  write(*,*) i, j, thetayx, thetaxz, thetazy
+!  write(*,*) 'i, j, yx, xz, zy'
+!  write(*,*) i, j, thetayx, thetaxz, thetazy
      end do
    end do 
   end subroutine get_atan2
@@ -151,7 +151,7 @@ write(*,*) 'sorted from global',sorted_from_global_color
    do i = 1, nat
     write(*,*) types(i), coords(i,:)
    end do
-   call sort_to_order(nat,coords,global_from_sorted_color)
+!   call sort_to_order(nat,coords,global_from_sorted_color)  !! either this sort, or use lab(i)
  write(*,*) 'after sort'
    do i = 1, nat
     write(*,*) types(i), coords(i,:)
@@ -283,7 +283,7 @@ end do
   real :: dij
 
   open(unit=555,file='neighbor_table.dat',status='old',action='read')
-  n_color = 3
+  n_color = 4
   allocate(color_cutoff(1:n_color,1:n_color))
   color_cutoff(:,:) = 0.0
   read(555,*)
