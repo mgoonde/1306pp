@@ -132,19 +132,22 @@ end do
 
    do i = 1, nn
      basis(1,:) = neigh(i,:)
+     basis(1,:) = basis(1,:)/norm(basis(1,:))
 !     basis(2,:) = A(i,:)
      do j = 1,nn
         if ( A(i,j) == 0 ) cycle
         basis(2,:) = A(i,j) * neigh(j,:)
+        basis(2,:) = basis(2,:)/norm(basis(2,:))
         basis(3,:) = cross(basis(1,:),basis(2,:))
+        basis(3,:) = basis(3,:)/norm(basis(3,:))
 write(*,*) 'basis'
 write(*,*) basis(1,:)
 write(*,*) basis(2,:)
 write(*,*) basis(3,:)
-write(*,*) 'map in this basis'
+!write(*,*) 'map in this basis'
         do ii = 1,size(coords_copy,1)
            call cart_to_crist(coords_copy(ii,:),basis)
-           write(*,*) coords_copy(ii,:)
+!           write(*,*) coords_copy(ii,:)
         end do
 write(*,*) 'disp', sum(coords_copy,1)
 write(*,*)
