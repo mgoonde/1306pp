@@ -27,6 +27,9 @@ real, dimension(3) :: vec
  real :: neigh(12,3)
  real :: theta1, theta2, theta3
 
+ integer, allocatable :: Amatrix(:,:)
+ integer :: nn
+
  character(10) :: ev_tag
  
  open(unit=444,file='events.in',status='old')
@@ -109,7 +112,7 @@ write(*,*) 'typs after conn;',ev_init_map_types
    write(*,*)
    neigh(:,:) = 0.0
    write(*,*) 'neighbour matrix'
-   call find_neighbour_matrix(ev_init_map,ev_init_nb,connect,lab,neigh)
+   call find_neighbour_matrix(ev_init_map,connect,lab,neigh)
    do k = 1,12
      write(*,*) neigh(k,:)
    end do
@@ -118,13 +121,14 @@ write(*,*) 'typs after conn;',ev_init_map_types
 !   call get_angle(neigh(3,:),neigh(1,:),theta)
 !   write(*,*) 'angle neigh3, neigh1',theta
 
-   write(*,*) 'atan2'
-   call get_atan2(neigh,theta1,theta2,theta3)
-
    write(*,*) "connect in canon"
    do k=1, ev_init_nat
     write(*,"(15i4)") (connect(lab(k),j), j=1,ev_init_nat)
    enddo
+
+   write(*,*) 'pssbl_basis'
+   nn = sum(connect(1,:))
+   call pssbl_basis(ev_init_map,neigh,nn,lab,Amatrix)
 
 !   !! find the first basis vector: first nonzero vector in the canon order
 !   k = 1
@@ -183,29 +187,29 @@ write(*,*) 'typs after conn;',ev_init_map_types
 !   end do
 
 
-   !! first basis vector for event is the first neighbor vector
-   bases(1,:) = neigh(1,:)
-
-   !! second basis vector is the first noncollinear neighbour
-   do ii=2, ev_init_nb-1
-    proj = inner_prod( bases(1,:), neigh(ii,:) )
-    n1n2 = norm(bases(1,:))*norm(neigh(ii,:))
-    if ( n1n2 - abs(proj) .gt. 1.0e-1 ) then
-      bases(2,:) = neigh(ii,:)
-      exit
-    endif
-   end do
-
-   write(*,*) 'basis vectors'
-   write(*,*) bases(1,:)
-   write(*,*) bases(2,:)
-
-   !! third basis vector is cross(1,2)
-   bases(3,:) = cross( bases(1,:), bases(2,:) )
-   
-   write(*,*) bases(3,:)
-  
-   write(*,*)
+!   !! first basis vector for event is the first neighbor vector
+!   bases(1,:) = neigh(1,:)
+!
+!   !! second basis vector is the first noncollinear neighbour
+!   do ii=2, ev_init_nb-1
+!    proj = inner_prod( bases(1,:), neigh(ii,:) )
+!    n1n2 = norm(bases(1,:))*norm(neigh(ii,:))
+!    if ( n1n2 - abs(proj) .gt. 1.0e-1 ) then
+!      bases(2,:) = neigh(ii,:)
+!      exit
+!    endif
+!   end do
+!
+!   write(*,*) 'basis vectors'
+!   write(*,*) bases(1,:)
+!   write(*,*) bases(2,:)
+!
+!   !! third basis vector is cross(1,2)
+!   bases(3,:) = cross( bases(1,:), bases(2,:) )
+!   
+!   write(*,*) bases(3,:)
+!  
+!   write(*,*)
 
 !   !! convert to that basis
 !   write(*,*) 'map in its basis'

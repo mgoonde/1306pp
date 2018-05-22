@@ -58,27 +58,103 @@ module routines
   end function atang
 
 
-  subroutine find_neighbour_matrix(coords,nbvertex,connect,lab,neigh)
+  subroutine find_neighbour_matrix(coords,connect,lab,neigh)
   !! find the nearest neighbours, by chemistry there are maximum 12
    implicit none
    real, intent(in) :: coords(:,:)
-   integer, intent(in) :: nbvertex
    integer, intent(in) :: lab(:)
    integer, parameter :: n=12
    real, dimension(n,3), intent(out) :: neigh
    integer, intent(in) :: connect(:,:)
+   integer :: nb
    integer :: k, i
    
    neigh(:,:) = 0.0
    k = 0
-   do i = 1, nbvertex
-!     if ( i == nbvertex ) exit 
+   nb = sum( connect(1,:) )  !! is the total number of connections (=neighbors)
+   do i = 1, size(connect,1)  !! loop through whole connect
      k = k + connect(1, lab(i) )
      if ( connect(1,lab(i)) == 0 ) cycle
      neigh(k,:) = connect(1,lab(i))*coords(lab(i),:)
+     if ( k == nb ) exit  !! k is all the neighbors
    end do
 
   end subroutine find_neighbour_matrix
+
+
+  subroutine pssbl_basis(map_coords,neigh,nn,lab,A)
+   implicit none
+   real, intent(in) :: map_coords(:,:)
+   real, intent(in) :: neigh(:,:)
+   integer, intent(in) :: nn ! number of nonzero neighbours
+   integer, intent(in) :: lab(:)
+   integer, allocatable, intent(out) :: A(:,:) ! matrix of possible basis vector indices
+
+   real, dimension(3) :: r_me, r_i, r_j
+   real, dimension(3,3) :: basis
+   real :: nrm_i, nrm_j, proj_ij, collin
+   integer :: i,j,n, r_me_ind, ii
+   real, allocatable :: coords_copy(:,:)
+
+   allocate(A(1:nn, 1:nn))
+   A(:,:) = 0
+
+   allocate(coords_copy(1:size(map_coords,1),1:3))
+   do i = 1, size(map_coords,1)
+     coords_copy(i,:) = map_coords(i,:)
+   end do
+
+   r_me_ind = minloc(lab(:), 1)
+write(*,*) ' r_me_ind in canon', r_me_ind
+   r_me = map_coords( lab(r_me_ind), :)
+write(*,*) ' r_me',r_me
+
+   do i = 1, 12
+     r_i = neigh(i,:)
+     nrm_i = norm( r_i )
+     if ( nrm_i == 0.0 ) cycle
+     do j = 1,12
+       if ( i == j ) cycle
+       r_j = neigh(j,:)
+       nrm_j = norm( r_j )
+       if ( nrm_j == 0.0 ) cycle
+       proj_ij = inner_prod( r_i, r_j )
+       collin = proj_ij / (nrm_i * nrm_j ) 
+write(*,*) i,j, 1-abs(nint(collin))
+       A(i,j) = 1 - abs( nint( collin ) )
+     end do
+   end do
+
+write(*,*) 'A'
+do i = 1, nn
+write(*,*) A(i,:)
+end do
+
+   do i = 1, nn
+     basis(1,:) = neigh(i,:)
+!     basis(2,:) = A(i,:)
+     do j = 1,nn
+        if ( A(i,j) == 0 ) cycle
+        basis(2,:) = A(i,j) * neigh(j,:)
+        basis(3,:) = cross(basis(1,:),basis(2,:))
+write(*,*) 'basis'
+write(*,*) basis(1,:)
+write(*,*) basis(2,:)
+write(*,*) basis(3,:)
+write(*,*) 'map in this basis'
+        do ii = 1,size(coords_copy,1)
+           call cart_to_crist(coords_copy(ii,:),basis)
+           write(*,*) coords_copy(ii,:)
+        end do
+write(*,*) 'disp', sum(coords_copy,1)
+write(*,*)
+        do ii = 1,size(map_coords,1)
+           coords_copy(ii,:) = map_coords(ii,:)
+        end do
+     end do
+   end do
+
+  end subroutine pssbl_basis
 
 
   subroutine get_angle(r1,r2,theta)
@@ -1291,7 +1367,7 @@ write(*,*) 'nbvertex',nbvertex
        bt(2,2)= ct(1,1)*ct(3,3)-ct(3,1)*ct(1,3)
        bt(2,3)=-(ct(1,1)*ct(2,3)-ct(1,3)*ct(2,1))
        bt(3,1)= ct(2,1)*ct(3,2)-ct(2,2)*ct(3,1)
-       bt(3,2)= -(ct(1,1)*ct(3,2)-ct(1,2)*ct(3,1))
+       bt(3,2)=-(ct(1,1)*ct(3,2)-ct(1,2)*ct(3,1))
        bt(3,3)= ct(1,1)*ct(2,2)-ct(2,1)*ct(1,2)
   !------------------------------------------------
 

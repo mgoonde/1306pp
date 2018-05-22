@@ -5,7 +5,7 @@ double = -fdefault-real-8
 
 #all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
 #all: f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
-all: f90nautyinterf.mod event_hash.x con.x 
+all: f90nautyinterf.mod event_hash.x 
 
 ffnautyex1_sestic.o:
 	gcc -c ./ctofinterf/ffnautyex1_sestic.c -I./nauty/nauty26r11/
