@@ -5,7 +5,8 @@ double = -fdefault-real-8
 
 #all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
 #all: f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
-all: f90nautyinterf.mod event_hash.x 
+#all: f90nautyinterf.mod event_hash.x 
+all: f90nautyinterf.mod one_event.x parse_syst.x
 
 ffnautyex1_sestic.o:
 	gcc -c ./ctofinterf/ffnautyex1_sestic.c -I./nauty/nauty26r11/
@@ -28,14 +29,18 @@ hashtest.x : routines.o hashtest.o f90nautyinterf.mod
 event_hash.x: routines.o f90nautyinterf.mod sort_index.o event_hash.o ffnautyex1_sestic.o
 	$(compiler) $(double) -o event_hash.x routines.o event_hash.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a
 
+one_event.x: routines.o f90nautyinterf.mod sort_index.o one_event.o ffnautyex1_sestic.o
+	$(compiler) $(double) -o one_event.x routines.o one_event.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a
+
+
 #cycles.x: routines.o f90nautyinterf.mod sort_index.o cycles.o ffnautyex1_sestic.o
 #	$(compiler) $(double) -o cycles.x routines.o cycles.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a
 
 hashing_sites.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o hashing_sites.o
 	$(compiler) $(double) -o hashing_sites.x routines.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a hashing_sites.o
 
-con.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o con.o
-	$(compiler) $(double) -o con.x routines.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a con.o
+parse_syst.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o parse_syst.o
+	$(compiler) $(double) -o parse_syst.x routines.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a parse_syst.o
 
 clean: 
 	rm -f *.o

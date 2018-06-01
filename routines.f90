@@ -69,6 +69,11 @@ module routines
    integer :: nb
    integer :: k, i
    
+write(*,*) '>>>>> find neigh'
+write(*,*) ' coords begin neigh'
+do i = 1, size(coords,1)
+  write(*,*) coords(i,:)
+end do
    neigh(:,:) = 0.0
    k = 0
    nb = sum( connect(1,:) )  !! is the total number of connections (=neighbors)
@@ -78,7 +83,11 @@ module routines
      neigh(k,:) = connect(1,lab(i))*coords(lab(i),:)
      if ( k == nb ) exit  !! k is all the neighbors
    end do
-
+write(*,*) 'found neigh'
+do i = 1,12
+  write(*,*) neigh(i,:)
+end do
+write(*,*) '>>>> end find neigh'
   end subroutine find_neighbour_matrix
 
 
@@ -93,8 +102,14 @@ module routines
    real, dimension(3) :: r_me, r_i, r_j
    real, dimension(3,3) :: basis
    real :: nrm_i, nrm_j, proj_ij, collin
+   real :: tolerance !! for collinearity
    integer :: i,j,n, r_me_ind, ii
    real, allocatable :: coords_copy(:,:)
+
+   tolerance = 0.9   !! in units of collinearity (0 to 1) -- if collinearity of two
+                     !! vectors is below tolerance, they are accepted as possible basis.
+                     !! Collinearity = 1  -->  vectors are collinear
+                     !! collinearity = 0  -->  vectors are orthogonal
 
    allocate(A(1:nn, 1:nn))
    A(:,:) = 0
@@ -109,6 +124,10 @@ write(*,*) ' r_me_ind in canon', r_me_ind
    r_me = map_coords( lab(r_me_ind), :)
 write(*,*) ' r_me',r_me
 
+   !! find the matrix of possible basis vector indeces, format:
+   !! first row gives possible second vector index when the first
+   !!  'neighbor' vector is first basis vector. the position in the row gives
+   !! the index of the second basis vector in the 'neighbor' matrix.
    do i = 1, 12
      r_i = neigh(i,:)
      nrm_i = norm( r_i )
@@ -120,8 +139,9 @@ write(*,*) ' r_me',r_me
        if ( nrm_j == 0.0 ) cycle
        proj_ij = inner_prod( r_i, r_j )
        collin = proj_ij / (nrm_i * nrm_j ) 
-write(*,*) i,j, 1-abs(nint(collin))
-       A(i,j) = 1 - abs( nint( collin ) )
+write(*,*) i,j, 1-abs(nint(collin+tolerance)), collin, (0.5*erfc(abs(collin) - tolerance))
+!       A(i,j) = 1 - abs( nint( collin+tolerance ) )
+       A(i,j) = nint(0.5*erfc( abs(collin) - tolerance ))
      end do
    end do
 
@@ -130,6 +150,8 @@ do i = 1, nn
 write(*,*) A(i,:)
 end do
 
+   !! with A, find all possible combinations of 'neighbor' vectors that form a basis, then
+   !! write the system in that basis and get the dispersion on each axis.
    do i = 1, nn
      basis(1,:) = neigh(i,:)
      basis(1,:) = basis(1,:)/norm(basis(1,:))
@@ -818,6 +840,7 @@ end subroutine Pancake_sort
    integer, intent(out) :: nbvertex
 
    n=size(coords,1)
+write(*,*) '>>>> in map, coord in'
 do i =1,n
 write(*,*) coords(i,:)
 end do
@@ -831,9 +854,9 @@ end do
             ( coords(isite,3) - coords(i,3) )**2
      dist = sqrt(dist)
      nbvertex = nbvertex + NINT(0.5*erfc(dist - Rcut))
- write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
+! write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
    end do
-write(*,*) 'nbvertex',nbvertex
+!write(*,*) 'nbvertex',nbvertex
 
    allocate(map_coords(1:nbvertex,1:3))
    allocate(map_indices(1:nbvertex))
@@ -875,16 +898,18 @@ write(*,*) 'nbvertex',nbvertex
 !   end do
 
 !   nat_in_map = k-1
+write(*,*) '>>>>. end map'
   end subroutine map_site
 
   
-  subroutine get_hash_prob_new(fd,hash,prob,event_nat)
+  subroutine get_hash_prob_new(fd,hash,prob,event_nat,disp)
   !! read ordered events for hash and prob
    implicit none
    integer, intent(in) :: fd
    integer, allocatable,intent(out) :: hash(:)
    real,allocatable,intent(out) :: prob(:)
    integer, allocatable, intent(out) :: event_nat(:)
+   real, dimension(3), intent(out) :: disp
 
    logical :: eof
    character(len=256) :: line
@@ -903,8 +928,9 @@ write(*,*) 'nbvertex',nbvertex
        line = trim ( adjustl ( line(2:) ) )   !! to get rid of '@' and possible spaces
        read(line,*) ievt
        read(fd,*) prob(ievt)
-       read(fd,*) event_nat(ievt)
+   !    read(fd,*) event_nat(ievt)
        read(fd,*) hash(ievt)
+       read(fd,*) disp(1), disp(2), disp(3)
      endif
    end do
 !   rewind(fd)
