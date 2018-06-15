@@ -69,25 +69,28 @@ module routines
    integer :: nb
    integer :: k, i
    
-write(*,*) '>>>>> find neigh'
-write(*,*) ' coords begin neigh'
-do i = 1, size(coords,1)
-  write(*,*) coords(i,:)
-end do
+!write(*,*) '>>>>> find neigh'
+!write(*,*) ' coords begin neigh'
+!do i = 1, size(coords,1)
+!  write(*,*) coords(i,:)
+!end do
+!write(*,*)
    neigh(:,:) = 0.0
    k = 0
    nb = sum( connect(1,:) )  !! is the total number of connections (=neighbors)
+!write(*,*) nb
    do i = 1, size(connect,1)  !! loop through whole connect
-     k = k + connect(1, lab(i) )
-     if ( connect(1,lab(i)) == 0 ) cycle
-     neigh(k,:) = connect(1,lab(i))*coords(lab(i),:)
+     k = k + connect(1, (i) )
+     if ( connect(1,(i)) == 0 ) cycle
+!write(*,*) connect(1,(i)),coords((i),:)
+     neigh(k,:) = connect(1,(i))*coords((i),:)
      if ( k == nb ) exit  !! k is all the neighbors
    end do
-write(*,*) 'found neigh'
-do i = 1,12
-  write(*,*) neigh(i,:)
-end do
-write(*,*) '>>>> end find neigh'
+!write(*,*) 'found neigh'
+!do i = 1,12
+!  write(*,*) neigh(i,:)
+!end do
+!write(*,*) '>>>> end find neigh'
   end subroutine find_neighbour_matrix
 
 
@@ -120,9 +123,9 @@ write(*,*) '>>>> end find neigh'
    end do
 
    r_me_ind = minloc(lab(:), 1)
-write(*,*) ' r_me_ind in canon', r_me_ind
+!write(*,*) ' r_me_ind in canon', r_me_ind
    r_me = map_coords( lab(r_me_ind), :)
-write(*,*) ' r_me',r_me
+!write(*,*) ' r_me',r_me
 
    !! find the matrix of possible basis vector indeces, format:
    !! first row gives possible second vector index when the first
@@ -139,45 +142,48 @@ write(*,*) ' r_me',r_me
        if ( nrm_j == 0.0 ) cycle
        proj_ij = inner_prod( r_i, r_j )
        collin = proj_ij / (nrm_i * nrm_j ) 
-write(*,*) i,j, 1-abs(nint(collin+tolerance)), collin, (0.5*erfc(abs(collin) - tolerance))
+!write(*,*) i,j, 1-abs(nint(collin+tolerance)), collin, (0.5*erfc(abs(collin) - tolerance))
 !       A(i,j) = 1 - abs( nint( collin+tolerance ) )
        A(i,j) = nint(0.5*erfc( abs(collin) - tolerance ))
      end do
    end do
 
-write(*,*) 'A'
-do i = 1, nn
-write(*,*) A(i,:)
-end do
+!write(*,*) 'A'
+! do i = 1, nn
+!write(*,*) A(i,:)
+!end do
 
-   !! with A, find all possible combinations of 'neighbor' vectors that form a basis, then
-   !! write the system in that basis and get the dispersion on each axis.
-   do i = 1, nn
-     basis(1,:) = neigh(i,:)
-     basis(1,:) = basis(1,:)/norm(basis(1,:))
-!     basis(2,:) = A(i,:)
-     do j = 1,nn
-        if ( A(i,j) == 0 ) cycle
-        basis(2,:) = A(i,j) * neigh(j,:)
-        basis(2,:) = basis(2,:)/norm(basis(2,:))
-        basis(3,:) = cross(basis(1,:),basis(2,:))
-        basis(3,:) = basis(3,:)/norm(basis(3,:))
-write(*,*) 'basis'
-write(*,*) basis(1,:)
-write(*,*) basis(2,:)
-write(*,*) basis(3,:)
-!write(*,*) 'map in this basis'
-        do ii = 1,size(coords_copy,1)
-           call cart_to_crist(coords_copy(ii,:),basis)
-!           write(*,*) coords_copy(ii,:)
-        end do
-write(*,*) 'disp', sum(coords_copy,1)
-write(*,*)
-        do ii = 1,size(map_coords,1)
-           coords_copy(ii,:) = map_coords(ii,:)
-        end do
-     end do
-   end do
+
+!!!!!!--------THIS PART IS DONE LATER IN CODE------------------------------------
+!   !! with A, find all possible combinations of 'neighbor' vectors that form a basis, then
+!   !! write the system in that basis and get the dispersion on each axis.
+!   do i = 1, nn
+!     basis(1,:) = neigh(i,:)
+!     basis(1,:) = basis(1,:)/norm(basis(1,:))
+!!     basis(2,:) = A(i,:)
+!     do j = 1,nn
+!        if ( A(i,j) == 0 ) cycle
+!        basis(2,:) = A(i,j) * neigh(j,:)
+!        basis(2,:) = basis(2,:)/norm(basis(2,:))
+!        basis(3,:) = cross(basis(1,:),basis(2,:))
+!        basis(3,:) = basis(3,:)/norm(basis(3,:))
+!!write(*,*) 'basis'
+!!write(*,*) basis(1,:)
+!!write(*,*) basis(2,:)
+!!write(*,*) basis(3,:)
+!!write(*,*) 'map in this basis'
+!        do ii = 1,size(coords_copy,1)
+!           call cart_to_crist(coords_copy(ii,:),basis)
+!!           write(*,*) coords_copy(ii,:)
+!        end do
+!!write(*,*) 'disp', sum(coords_copy,1)
+!!write(*,*)
+!        do ii = 1,size(map_coords,1)
+!           coords_copy(ii,:) = map_coords(ii,:)
+!        end do
+!     end do
+!   end do
+!!!!!!!!-----------------------------------------------------------------------
 
   end subroutine pssbl_basis
 
@@ -222,7 +228,8 @@ write(*,*)
   end subroutine get_atan2
 
 
-  subroutine make_connectivity(nat,coords,types,color_cutoff,connect,lab,color)
+  subroutine make_connectivity(nat,coords,types,color_cutoff,connect,lab,color,ntyp,maxtyp,&
+                               sorted_from_global_color )
    implicit none
    integer, intent(in) :: nat
    real, intent(inout) :: coords(:,:)
@@ -230,8 +237,9 @@ write(*,*)
    real, intent(in) :: color_cutoff(:,:)
    integer, allocatable, intent(out) :: connect(:,:)
    integer, allocatable, intent(out) :: lab(:), color(:)
-   integer, allocatable :: sorted_from_global_color(:), &
-                           global_from_sorted_color(:)
+   integer, intent(out) :: ntyp, maxtyp
+   integer, allocatable, intent(out) :: sorted_from_global_color(:)
+   integer, allocatable :: global_from_sorted_color(:)
    real :: dij
    integer :: i, j, k
    
@@ -244,19 +252,28 @@ write(*,*)
    allocate(sorted_from_global_color(1:nat))
    allocate(global_from_sorted_color(1:nat))
 
-   call sort_property(nat,types,color,global_from_sorted_color,sorted_from_global_color)
-write(*,*) 'sort color',color
-write(*,*) 'global from sorted',global_from_sorted_color
-write(*,*) 'sorted from global',sorted_from_global_color
- write(*,*) 'before sort'
-   do i = 1, nat
-    write(*,*) types(i), coords(i,:)
-   end do
-!   call sort_to_order(nat,coords,global_from_sorted_color)  !! either this sort, or use lab(i)
- write(*,*) 'after sort'
-   do i = 1, nat
-    write(*,*) types(i), coords(i,:)
-   end do
+!   call sort_property(nat,types,color,global_from_sorted_color,sorted_from_global_color)
+!write(*,*) 'sorted color',color
+!write(*,*) 'types',types
+!write(*,*) 'maxval types',maxval(types)
+!   maxtyp = maxval(types)
+!   ntyp = 0
+!   do i = 1, size(color)
+!     if(color(i) == 0) ntyp = ntyp + 1
+!   end do
+!write(*,*) 'ntyp',ntyp
+!write(*,*) 'global from sorted',global_from_sorted_color
+!write(*,*) 'sorted from global',sorted_from_global_color
+!write(*,*) 'before sort'
+!do i = 1, nat
+! write(*,*) types(i), coords(i,:)
+!end do
+!!   call sort_to_order(nat,coords,global_from_sorted_color)  !! either this sort, or use lab(i)
+
+! write(*,*) 'after sort'
+!   do i = 1, nat
+!    write(*,*) types(i), coords(i,:)
+!   end do
    do i=1,nat
      do j=i+1, nat
        dij=0.0
@@ -265,21 +282,43 @@ write(*,*) 'sorted from global',sorted_from_global_color
        end do
        dij = sqrt(dij)
        connect(i,j) = NINT( 0.5*erfc(dij-color_cutoff( types(i),types(j) )))
+!  write(*,*)  color_cutoff( types(i),types(j) )
        connect(j,i) = NINT( 0.5*erfc(dij-color_cutoff( types(j),types(i) )))
-  write(*,*) i,j,dij,connect(i,j)
+!  write(*,*) i,j,dij,connect(i,j)
      end do
    end do
+
+!write(*,*) 'before sort types',types
+!write(*,*) 'before sort color',color
+   call sort_property(nat,types,color,global_from_sorted_color,sorted_from_global_color)
+!write(*,*) 'after sort color',color
+!write(*,*) 'after sort types',types
+!write(*,*) 'maxval types',maxval(types)
+   maxtyp = maxval(types)
+   ntyp = 0
+   do i = 1, size(color)
+     if(color(i) == 0) ntyp = ntyp + 1
+   end do
+!write(*,*) 'ntyp',ntyp
+!write(*,*) 'global from sorted',global_from_sorted_color
+!write(*,*) 'sorted from global',sorted_from_global_color
 
    do i=1,nat
      lab(i)=global_from_sorted_color(i)-1
    enddo
   
-!   call sort_to_order_typ(nat,types,sorted_from_global_color)
-!   call sort_to_order(nat,coords,sorted_from_global_color)
-write(*,*) 'end of make conn'
-do i=1, nat
- write(*,*) types(i),coords(i,:)
-end do
+!!   call sort_to_order_typ(nat,types,sorted_from_global_color)
+!!   call sort_to_order(nat,coords,sorted_from_global_color)
+
+!write(*,*) 'end of make conn'
+!do i=1, nat
+! write(*,*) types(i),coords(i,:)
+!end do
+!  deallocate(connect)
+!  deallocate(lab)
+!  deallocate(color)
+!  deallocate(sorted_from_global_color)
+  deallocate(global_from_sorted_color)
   end subroutine make_connectivity
 
 
@@ -377,6 +416,7 @@ end do
 
   subroutine set_color_cutoff(color_cutoff)
   !! set the color_cutoff matrix
+  !! first line is not read!!
   implicit none
   real, allocatable, intent(out) :: color_cutoff(:,:)
   integer :: n_color
@@ -840,10 +880,10 @@ end subroutine Pancake_sort
    integer, intent(out) :: nbvertex
 
    n=size(coords,1)
-write(*,*) '>>>> in map, coord in'
-do i =1,n
-write(*,*) coords(i,:)
-end do
+!write(*,*) '>>>> in map, coord in'
+!do i =1,n
+! write(*,*) coords(i,:)
+!end do
 
    ! set numbr of vertex within rcut
    nbvertex = 1
@@ -885,7 +925,7 @@ end do
    end do
 !write(*,*) 'map from map'
 !do i=1,n
-!write(*,*) map_coords(i,:)
+! write(*,*) map_coords(i,:)
 !end do
    
 !   call get_center_of_topology(map_coords,COM)
@@ -898,18 +938,17 @@ end do
 !   end do
 
 !   nat_in_map = k-1
-write(*,*) '>>>>. end map'
+!write(*,*) '>>>>. end map'
   end subroutine map_site
 
   
-  subroutine get_hash_prob_new(fd,hash,prob,event_nat,disp)
-  !! read ordered events for hash and prob
+  subroutine get_hash_prob_new(fd,hash,prob,event_nat)
+  !! read ordered events for hash and prob only! Actual dispersion and coordinates are read later
    implicit none
    integer, intent(in) :: fd
    integer, allocatable,intent(out) :: hash(:)
    real,allocatable,intent(out) :: prob(:)
    integer, allocatable, intent(out) :: event_nat(:)
-   real, dimension(3), intent(out) :: disp
 
    logical :: eof
    character(len=256) :: line
@@ -930,13 +969,62 @@ write(*,*) '>>>>. end map'
        read(fd,*) prob(ievt)
    !    read(fd,*) event_nat(ievt)
        read(fd,*) hash(ievt)
-       read(fd,*) disp(1), disp(2), disp(3)
      endif
    end do
 !   rewind(fd)
 
   end subroutine get_hash_prob_new
 
+
+  subroutine read_ordered_event(fd,idx,maxtyp,disp)
+   implicit none
+   integer, intent(in) :: fd
+   integer, intent(in) :: idx
+   integer, intent(out) :: maxtyp
+   real, allocatable, intent(out) :: disp(:,:)
+
+   integer :: ievt,i,dum
+   logical :: eof,eod
+   character(len = 128) :: line
+
+   ! read ntyp of wanted event index idx
+write(*,*) 'reading ordered event index',idx
+   eof = .false.
+   eod = .false.
+   do while(.not. eof)
+
+     call read_line(fd, line, eof)
+     line = trim(adjustl(line))
+     if(line(1:1) == '@' ) then
+
+       line = trim(adjustl(line(2:)))
+       read(line,*) ievt
+       if ( ievt == idx ) then
+
+         do while(.not.eod)
+           call read_line(fd,line,eod)
+           line = trim(adjustl(line))
+           if(line(1:6) == 'maxtyp') then
+             line = trim(adjustl(line(7:)))
+             read(line,*) maxtyp
+             eod = .true.
+           endif
+         end do
+
+         allocate(disp(1:maxtyp, 1:3))
+
+         do i = 1, maxtyp
+           read (fd,*) dum, disp(i,1), disp(i,2), disp(i,3)
+         end do
+ 
+       eof = .true.
+       endif
+
+     endif
+
+   end do
+   rewind(fd) 
+  end subroutine read_ordered_event
 
   subroutine get_hash_prob(fd,hash1,hash2,prob,nevt)
   !-----------------------
@@ -993,7 +1081,7 @@ write(*,*) '>>>>. end map'
   end subroutine get_hash_prob
 
 
-  subroutine get_ev_coord( fd, ev_idx, ev_init_nat, ev_init_typ, ev_init_coord, &
+  subroutine get_ev_coord( fd, ev_idx, ev_ntyp, ev_init_nat, ev_init_typ, ev_init_coord, &
                                        ev_final_nat, ev_final_typ, ev_final_coord, prob )
   !-------------------------------------
   ! extract the initial and final coordinates of the chosen event
@@ -1012,11 +1100,15 @@ write(*,*) '>>>>. end map'
    logical :: eof
    real :: dum
    integer :: ievt, i
+   integer, intent(out) :: ev_ntyp
    integer, intent(out) :: ev_init_nat, ev_final_nat
    integer, allocatable, intent(out) :: ev_init_typ(:), ev_final_typ(:)
    real, allocatable, intent(out) :: ev_init_coord(:,:), ev_final_coord(:,:)
    real, intent(out) :: prob
 
+
+   if( allocated(ev_init_typ)) deallocate(ev_init_typ)
+   if( allocated(ev_init_coord)) deallocate(ev_init_coord)
 !!!! this still relies on the events being tagged by numbers e.g. @3
 !! could introduce a counter on events...more simple
    eof=.false.
@@ -1032,7 +1124,14 @@ write(*,*) '>>>>. end map'
        do while (.not.eof)
          call read_line(fd,line,eof)
          line = trim ( adjustl (line) )
-         if ( line(1:13) =='begin initial' ) then
+         if (line ( 1:4) == 'ntyp') then
+           line = trim(adjustl(line(5:) ))
+           if (line(1:1) == '=' ) line = trim(adjustl(line(2:)))
+           read(line,*) ev_ntyp
+!         endif
+!         call read_line(fd,line,eof)
+!         line = trim ( adjustl (line) )
+         elseif ( line(1:13) =='begin initial' ) then
            !!! read initial configuration
            read(fd,*) ev_init_nat
            allocate(ev_init_typ(1:ev_init_nat))
@@ -1156,6 +1255,12 @@ write(*,*) '>>>>. end map'
 !! do we normalize the G vector by sum(G)? or it's ok like this? 
 !! now it's opposite, the rnd is scaled by sum(G)... 
 
+  if( sum(G) .lt. 1e-10) then
+    write(*,*) 'No event possible, zero probability'
+    goto 104
+  endif
+!write(*,*) 'rnd',rnd
+!write(*,*) 'G',G
    k=0
    rnd1=rnd*sum(G)
    idx=0
@@ -1167,6 +1272,8 @@ write(*,*) '>>>>. end map'
        exit
      endif
    end do
+104 continue
+!write(*,*) idx
   end subroutine choose_p
 
 
@@ -1587,5 +1694,111 @@ write(*,*) '>>>>. end map'
 
     A = spread(r2,dim=2,ncopies=2) * spread(r1,dim=1,ncopies=2)
   end subroutine get_tf2D
+
+
+  subroutine stdev(array,mean,sigma)
+  implicit none
+  real, intent(in) :: array(:)
+  real, intent(out) :: mean
+  real, intent(out) :: sigma
+
+  integer :: i
+  
+  mean = 0.0
+  sigma = 0.0
+
+  do i = 1, size(array)
+    mean = mean + array(i)
+  end do
+  mean = mean / size(array)
+
+  do i = 1, size(array)
+    sigma = sigma + ( array(i) - mean )**2
+  end do
+  sigma = sigma / size(array)
+  sigma = sqrt(sigma)
+
+  end subroutine stdev
+
+
+  subroutine projection(ntyp,colors,vectors,pen_depths,projs)
+   !!  < R_i,k , e_alpha > * exp( | R_i,k | / mu_k )
+   implicit none
+
+   integer, intent(in) :: ntyp
+   integer, intent(in) :: colors(:)
+   real, intent(in) :: vectors(:,:)
+   real, intent(in) :: pen_depths(:)  !! mu_k
+   real, dimension(ntyp,3) :: projs
+  
+   integer :: i
+
+!write(*,*) 'from projections'
+   projs(:,:) = 0.0d0
+   do i = 1, size(vectors,1)
+! write(*,*) 'vector',colors(i),vectors(i,:)
+      projs(colors(i),1) = projs(colors(i),1) + &
+                           vectors(i,1) * exp( - norm(vectors(i,:)) / pen_depths( colors(i) ) )   
+      projs(colors(i),2) = projs(colors(i),2) + &
+                           vectors(i,2) * exp( - norm(vectors(i,:)) / pen_depths( colors(i) ) )   
+      projs(colors(i),3) = projs(colors(i),3) + &
+                           vectors(i,3) * exp( - norm(vectors(i,:)) / pen_depths( colors(i) ) )   
+   end do
+!write(*,*) 'proj x all   proj y all    proj z all'
+!do i = 1, ntyp
+! write(*,*) projs(i,:)
+!end do
+  end subroutine projection
+
+
+  subroutine compare_array(array1, array2, tolerance, are_equal)
+   implicit none
+   real, intent(in) :: array1(:,:)
+   real, intent(in) :: array2(:,:)
+   real, intent(in) :: tolerance
+   logical, intent(out) :: are_equal
+
+   integer :: i, j
+   logical,allocatable :: comp(:,:)
+   real :: dum
+
+   if( size(array1,1) .ne. size(array2,1)) write(*,*) 'compared arrays not equal in size 1'
+   if( size(array1,2) .ne. size(array2,2)) write(*,*) 'compared arrays not equal in size 2'
+
+   allocate(comp( 1:size(array1,1), 1:size(array1,2) ))
+   comp(:,:) = .false.
+   do i = 1, size(array1,1)
+      do j = 1, size(array1,2)
+         dum = abs( (array1(i,j)) - (array2(i,j)) )
+         if ( dum .le. tolerance ) comp(i,j) = .true.
+!write(*,*) 'col',i,'row',j,'diff',dum
+!write(*,*) 'dum < tol',comp(i,j)
+      end do
+   end do
+
+   if( all(comp) ) then
+     are_equal = .true.
+   else
+     are_equal = .false.
+   endif
+
+   deallocate(comp)
+write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
+  end subroutine compare_array
+
+
+  subroutine set_rcut(fd,rcut)
+  implicit none
+  integer, intent(in) :: fd
+  real, intent(out) :: rcut
+  character(len=50) :: line
+
+  call read_line(fd,line)
+  line = trim(adjustl(line))
+  if( line(1:4) == 'rcut') then
+    line = line(5:)
+    read(line,*) rcut
+  endif
+  end subroutine set_rcut
 
 end module routines

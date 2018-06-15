@@ -34,7 +34,7 @@ real, dimension(3) :: vec
 
  character(10) :: ev_tag
  
- integer :: event_fd, ordered_fd
+ integer :: event_fd, ordered_fd, rcut_fd
  real, dimension(9) :: arr
  
  real, allocatable :: projs(:,:)
@@ -46,13 +46,16 @@ real, dimension(3) :: vec
 
  event_fd = 5
  ordered_fd = 666
+ rcut_fd = 112
  
 ! open(unit=event_fd,file='events.in',status='old')
  open(unit=ordered_fd,file='ordered_events11.dat',status='replace',action='write')
+ open(unit = rcut_fd,file = 'rcut.in',status='old')
 
  call set_color_cutoff(color_cutoff) 
-
- Rcut = 2.0
+ call set_rcut(rcut_fd,Rcut)
+ write(*,*) 'rcut',Rcut
+! Rcut = 2.0
 
  !! for each event create connectivity matrix, fill color, generate hash, get basis
  call get_nevt(event_fd,nevt)
@@ -219,7 +222,7 @@ deallocate(sorted_from_global_color)
    sum1 = 0.0
    sum2 = 0.0
    sum3 = 0.0
-   pen_depth = 10.0
+   pen_depth = 20.0
    do k = 1, ev_init_nb
      dist = ev_init_map(k,1)**2 + ev_init_map(k,2)**2 + ev_init_map(k,3)**2
      dist = sqrt(dist)
@@ -241,7 +244,7 @@ deallocate(sorted_from_global_color)
    allocate(projs(1:maxtyp,1:3))
    allocate(pen_depths(1:maxtyp))
    do k = 1 , maxtyp
-     pen_depths(k) = 10.0
+     pen_depths(k) = 20.0
    end do
    call projection(maxtyp,ev_init_map_types,ev_init_map,pen_depths,projs)
    write(ordered_fd,*) 'maxtyp',maxtyp
