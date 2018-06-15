@@ -193,6 +193,7 @@ write(*,*) 'nsites',nsites
 
 
  do i=1,size(prob_M)
+   if(prob_M(i) .eq. 0.0) cycle
    write(*,'(A4,F5.2)') 'prob',prob_M(i)
    write(*,'(A2,I4)') 'on',ev_site(i)
  end do
