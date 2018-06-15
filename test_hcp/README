@@ -1,0 +1,12 @@
+The example is HCP lattice with c/a = 1.633 (the ratio which maximise the packing factor)
+made of cca 3400 atoms. The structure is like one plane one color, second plane second color, third
+plane first color, fourth plane second color, etc. 
+
+- first run the binary one_event22.x with events.in as input: './../one_event22.x < event.in'
+  This generates the file 'ordered_events11.dat'
+
+- second you run the binary p22.x, without any input: './../p22.x'
+  This writes an output on your screen which is huge (this is a warning!)
+  What it does is just three 'steps' with trying to find possible 'events' at each step.
+  First stage by comparing the hashes, and then finding the basis.
+
