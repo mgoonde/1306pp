@@ -424,7 +424,7 @@ module routines
   real :: dij
 
   open(unit=555,file='neighbor_table.dat',status='old',action='read')
-  n_color = 4
+  n_color = 10
   allocate(color_cutoff(1:n_color,1:n_color))
   color_cutoff(:,:) = 0.0
   read(555,*)
@@ -1800,5 +1800,222 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
     read(line,*) rcut
   endif
   end subroutine set_rcut
+
+
+  subroutine this_dos(nat,maxtyp,nbsteps,sigma,coords,types,bases,mu_k,dos,rcut)
+  !! same subroutine as below, but this one has dos as intent(out) and does not write files
+  implicit none
+  integer, intent(in) :: nat
+  integer, intent(in) :: maxtyp
+  integer, intent(in) :: nbsteps
+  real, intent(in) :: sigma(:)
+  real, intent(inout) :: coords(:,:)
+  integer, intent(in) :: types(:)
+  real, intent(in) :: bases(:,:)
+  real, intent(in) :: mu_k(:)
+  real, intent(in) :: rcut
+  real, allocatable, intent(out) :: dos(:,:,:)
+
+  integer :: i, k, j, m
+  integer :: m_typ
+  real :: projmin, projmax
+  real :: deltax
+  real :: dist
+  real :: gauss_height
+  real, allocatable :: sumdos(:,:)
+  character(len = 50) :: fname
+
+  !! setup min and maxval, like this the deltax is the same for all colors and axes
+  projmin = minval(coords(:,:)) - minval(sigma)
+  projmax = maxval(coords(:,:)) + maxval(sigma)
+  projmin = -rcut
+  projmax = rcut
+  deltax = (projmax + abs(projmin) ) / nbsteps
+
+  allocate(dos( 1:nbsteps, 1:3, 1:maxtyp ))
+  dos(:,:,:) = 0.0
+
+  !! calculate the DOS function: to each value of projection, put a gaussian which height
+  !!   is determined by exp( - abs( R ) / mu_k ). Then, sum the contributions of all
+  !!   gaussians at each point in the discretization of the axis.
+  do k = 1, nat
+    dist = norm( coords(k,:) ) 
+    m_typ = types(k)
+    gauss_height = exp ( - abs(dist) / mu_k( m_typ ) )
+    call cart_to_crist( coords( k, : ), bases )
+    do i = 1, nbsteps
+      do j = 1, 3
+        dos( i, j, m_typ ) = dos( i, j, m_typ) + &
+                  gauss_height * &
+                  exp( -(projmin + deltax*(i-1) - coords(k,j))**2 / (2*sigma( m_typ )**2 ))
+      end do
+    end do
+  end do
+
+  !! integrate for each color separately
+  !! " integral( f_a^k( x_a ) ) d x_a "
+  allocate(sumdos( 1:3, 1:maxtyp ))
+  sumdos(:,:) = 0.0
+  do i = 1, nbsteps
+    do j = 1, 3
+      do m = 1, maxtyp
+        sumdos( j, m ) = sumdos( j, m ) + dos( i, j, m )
+      end do
+    end do
+  end do
+
+  !! sum all colors together: for normalization no matter the color
+!  do j = 1, 3
+!    sumdos(j,:) = sum(sumdos(j,:))
+!  end do
+
+  !! sum all colors, all axes together: for normalization over total integral
+!  sumdos(:,:) = sum(sumdos(:,:))
+
+  do j = 1,3
+    do m = 1, maxtyp
+      write(*,*) 'axis',j,'typ',m,'sumdos',sumdos(j,m)
+    end do
+  end do
+
+  !! divide by integral
+  do m = 1, maxtyp
+    do j = 1, 3
+      dos( :, j, m ) = dos( :, j, m ) / sumdos( j, m )
+    end do
+  end do
+
+  deallocate(sumdos)
+  end subroutine this_dos
+
+
+  subroutine generate_dos(nat,maxtyp,nbsteps,sigma,coords,types,bases,mu_k,ievt,rcut)
+  implicit none
+  integer, intent(in) :: nat
+  integer, intent(in) :: maxtyp
+  integer, intent(in) :: nbsteps
+  real, intent(in) :: sigma(:)
+  real, intent(inout) :: coords(:,:)
+  integer, intent(in) :: types(:)
+  real, intent(in) :: bases(:,:)
+  real, intent(in) :: mu_k(:)
+  integer, intent(in) :: ievt
+  real, intent(in) :: rcut
+
+  integer :: i, k, j, m
+  integer :: m_typ
+  real :: projmin, projmax
+  real :: deltax
+  real :: dist
+  real :: gauss_height
+  real, allocatable :: dos(:,:,:)
+  real, allocatable :: sumdos(:,:)
+  character(len = 50) :: fname
+
+  !! setup min and maxval, like this the deltax is the same for all colors and axes
+  projmin = minval(coords(:,:)) - minval(sigma)
+  projmax = maxval(coords(:,:)) + maxval(sigma)
+  projmin = -rcut
+  projmax = rcut
+  deltax = (projmax + abs(projmin) ) / nbsteps
+
+  allocate(dos( 1:nbsteps, 1:3, 1:maxtyp ))
+  dos(:,:,:) = 0.0
+
+  !! calculate the DOS function: to each value of projection, put a gaussian which height
+  !!   is determined by exp( - abs( R ) / mu_k ). Then, sum the contributions of all
+  !!   gaussians at each point in the discretization of the axis.
+  do k = 1, nat
+    dist = norm( coords(k,:) ) 
+    m_typ = types(k)
+    gauss_height = exp ( - abs(dist) / mu_k( m_typ ) )
+    call cart_to_crist( coords( k, : ), bases )
+    do i = 1, nbsteps
+      do j = 1, 3
+        dos( i, j, m_typ ) = dos( i, j, m_typ) + &
+                  gauss_height * &
+                  exp( -(projmin + deltax*(i-1) - coords(k,j))**2 / (2*sigma( m_typ )**2 ))
+      end do
+    end do
+  end do
+
+  !! integrate for each color separately
+  !! " integral( f_a^k( x_a ) ) d x_a "
+  allocate(sumdos( 1:3, 1:maxtyp ))
+  sumdos(:,:) = 0.0
+  do i = 1, nbsteps
+    do j = 1, 3
+      do m = 1, maxtyp
+        sumdos( j, m ) = sumdos( j, m ) + dos( i, j, m )
+      end do
+    end do
+  end do
+
+  !! sum all colors together: for normalization no matter the color
+!  do j = 1, 3
+!    sumdos(j,:) = sum(sumdos(j,:))
+!  end do
+
+  !! sum all colors, all axes together: for normalization over total integral
+!  sumdos(:,:) = sum(sumdos(:,:))
+
+  do j = 1,3
+    do m = 1, maxtyp
+      write(*,*) 'axis',j,'typ',m,'sumdos',sumdos(j,m)
+    end do
+  end do
+
+  !! divide by integral
+  do m = 1, maxtyp
+    do j = 1, 3
+      dos( :, j, m ) = dos( :, j, m ) / sumdos( j, m )
+    end do
+  end do
+
+  !! output the DOS into files: 3 files per event, one axis per file
+  do j = 1, 3
+    write( fname, '( a, i0, a, i0, a )' ) 'ev_',ievt,'_proj_on_',j,'.dat'
+    open( unit = 100, file = fname, status = 'replace' )
+    do i = 1, nbsteps
+      write( 100, * ) (i - 1) * deltax + projmin, ( dos( i, j, m ), m = 1, maxtyp )
+    end do
+    close(100)
+  end do
+
+  deallocate(dos)
+  deallocate(sumdos)
+  end subroutine generate_dos
+
+
+  subroutine read_ref_dos(ievt, axis, maxtyp, nbsteps, dos)
+  !! read the dos file of referenced event ievt, only the specified axis
+   implicit none
+   integer, intent(in) :: ievt
+   integer, intent(in) :: axis
+   integer, intent(in) :: maxtyp
+   integer, intent(in) :: nbsteps
+   real, allocatable, intent(out) :: dos(:,:)
+
+   character(len=100) :: fname
+   real :: dum
+   integer :: i,k
+   
+   if(allocated(dos)) deallocate(dos)
+   allocate(dos(1:nbsteps,1:maxtyp))   
+
+   write(fname,'(a,i0,a,i0,a)') 'ev_',ievt,'_proj_on_',axis,'.dat' 
+   open(unit = 201, file=fname, status='old',action='read')
+   do i = 1, nbsteps
+      read(201,*) dum, (dos(i,k),k=1,maxtyp)
+   end do
+   close(201)
+  end subroutine read_ref_dos
+
+
+  subroutine compare_dos()
+   implicit none
+   
+
+  end subroutine compare_dos
 
 end module routines

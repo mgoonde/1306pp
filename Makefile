@@ -1,6 +1,6 @@
 compiler = gfortran
 objects = routines.o maintest.o
-flags = -O -fbounds-check
+flags = -O -g -fbounds-check -fcheck=all -Wall
 double = -fdefault-real-8
 
 #all: maintest.x f90nautyinterf.mod hashtest.x event_hash.x cycles.x hashing_sites.x
@@ -8,7 +8,9 @@ double = -fdefault-real-8
 #all: f90nautyinterf.mod event_hash.x 
 #all: f90nautyinterf.mod one_event.x parse_syst.x 
 #all: f90nautyinterf.mod one_event.x p11.x 
-all: f90nautyinterf.mod one_event22.x p22.x
+#all: f90nautyinterf.mod one_event22.x p22.x
+#all: f90nautyinterf.mod one_event33.x p33.x
+all: f90nautyinterf.mod one_event33.x p44.x
 
 ffnautyex1_sestic.o:
 	gcc -c ./ctofinterf/ffnautyex1_sestic.c -I./nauty/nauty26r11/
@@ -38,6 +40,8 @@ one_event.x: routines.o f90nautyinterf.mod sort_index.o one_event.o ffnautyex1_s
 one_event22.x: routines.o f90nautyinterf.mod sort_index.o one_event22.o ffnautyex1_sestic.o
 	$(compiler) $(double) -o one_event22.x routines.o one_event22.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a
 
+one_event33.x: routines.o f90nautyinterf.mod sort_index.o one_event33.o ffnautyex1_sestic.o
+	$(compiler) $(double) -o one_event33.x routines.o one_event33.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a
 
 #cycles.x: routines.o f90nautyinterf.mod sort_index.o cycles.o ffnautyex1_sestic.o
 #	$(compiler) $(double) -o cycles.x routines.o cycles.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a
@@ -53,6 +57,13 @@ p11.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o p11.o
 
 p22.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o p22.o
 	$(compiler) $(double) -o p22.x routines.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a p22.o
+
+p33.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o p33.o
+	$(compiler) $(double) -o p33.x routines.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a p33.o
+
+p44.x: routines.o f90nautyinterf.mod sort_index.o ffnautyex1_sestic.o p44.o
+	$(compiler) $(double) -o p44.x routines.o interface.o sort_index.o ffnautyex1_sestic.o ./nauty/nauty26r11/nauty.a p44.o
+
 
 
 clean: 
