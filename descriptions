@@ -8,15 +8,30 @@ p11
 ------------
 one_event22
 p22
+ some sorting trouble resolved
 
 ------------
 one_event33
+ DOS
+ write reference configuration with basis in .xsf
+
 p33
+ possibility for orthonormal basis 
 
 p44
 
+ DOS stuffs
+ Makes dir 'step1', reads rcut.in
+ write site_basis_overlap_ev# 
+ write the dos of each possible basis combination into step1 folder
+ calculate the overlap with reference dos
+ write every configuration with the basis as forces in .xsf
 ------------
 one_event55
+
+
 p55
 
+ read lattice
+ pbc
 
