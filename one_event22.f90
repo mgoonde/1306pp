@@ -199,15 +199,18 @@ deallocate(sorted_from_global_color)
 
    bases(1,:) = neigh(1,:)
    bases(1,:) = bases(1,:)/norm(bases(1,:))
+!   bases(1,:) = bases(1,:)/norm(bases(1,:)) * Rcut
  
    !! store indeces of the first appearances for second basis vectors in B
    allocate(B(1:nn))
    B(:)= maxloc(Amatrix,2)  ! search max value in rows of Amatrix, and track idx of first appear
    bases(2,:) = neigh(B(1),:)
    bases(2,:) = bases(2,:)/norm(bases(2,:))
+!   bases(2,:) = bases(2,:)/norm(bases(2,:)) * Rcut
 
    bases(3,:) = cross( bases(1,:),bases(2,:) )
    bases(3,:) = bases(3,:)/norm(bases(3,:))
+!   bases(3,:) = bases(3,:)/norm(bases(3,:)) * Rcut
    write(*,*) 'bases'
    do k = 1, 3
      write(*,*) bases(k,:)
@@ -240,13 +243,17 @@ deallocate(sorted_from_global_color)
    write(*,*) 'mean on z',sum1,'sigma on z',sum2
 
    write(*,*) 'projections resolved by color'
+   do k = 1,ev_init_nb
+     call crist_to_cart(ev_init_map(k,:),bases)
+   end do
 
    allocate(projs(1:maxtyp,1:3))
    allocate(pen_depths(1:maxtyp))
    do k = 1 , maxtyp
      pen_depths(k) = 20.0
    end do
-   call projection(maxtyp,ev_init_map_types,ev_init_map,pen_depths,projs)
+!   call projection(maxtyp,ev_init_map_types,ev_init_map,pen_depths,projs)
+   call projection_new(maxtyp,ev_init_map_types,ev_init_map,bases,pen_depths,projs)
    write(ordered_fd,*) 'maxtyp',maxtyp
    do k = 1, maxtyp
      write(ordered_fd,*) k, projs(k,:)

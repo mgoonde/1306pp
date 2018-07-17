@@ -13,6 +13,7 @@
   real :: Rcut, dum, rnd
  
   real, dimension(3) :: disp, dispev
+  real, allocatable :: disp1(:,:), dispev1(:,:)
 
   real, dimension(3,3) :: bases
 
@@ -27,10 +28,11 @@
                           Amatrix(:,:)
 
   real, dimension(12,3) :: neigh
+  integer :: site_fd, ordered_fd
+  integer :: ntyp
   
-
-  open(unit=111,file='site.in',status='old')
-  open(unit=444,file='events.in',status='old')
+  site_fd = 111
+  open(unit=site_fd,file='site.in',status='old')
 
  call set_random_seed()
 
@@ -40,13 +42,13 @@
  call set_color_cutoff(color_cutoff)
 
  !!! cutoff to create a map - is not the same as color cutoff matrix, should be larger
-  Rcut = 20.0
+  Rcut = 1.1
 
   
  !!!-------------------------
  !!! read sites
  !!!-------------------------
-  call get_nsites(111,nsites) 
+  call get_nsites(site_fd,nsites) 
   allocate(coords(1:nsites,1:3))
   allocate(types(1:nsites))
   allocate(site_hash(1:nsites))
@@ -54,7 +56,7 @@
 do nnn = 1, 30
 
 
-  call read_sites3D_new(111,nsites,types,coords)
+  call read_sites3D_new(site_fd,nsites,types,coords)
 !  do i = 1, nsites
 !    write(*,*) types(i), coords(i,:)
 !  end do
@@ -164,10 +166,10 @@ do nnn = 1, 30
  !!! at this point, all site hashes are known
  !!!
  !!!--------------------------------
- 
- open(unit=323,file='ordered_events.dat',status='old')
- call get_hash_prob_new(323,all_hash,all_prob,event_nat,disp)
- rewind(323)
+ ordered_fd = 323 
+ open(unit=ordered_fd,file='ordered_events.dat',status='old')
+ call get_hash_prob_new(ordered_fd,all_hash,all_prob,event_nat)
+ rewind(ordered_fd)
 
  write(*,*) 'events info'
  write(*,*) all_hash
@@ -182,6 +184,7 @@ write(*,*) 'nevt',nevt
  prob_M(:) = 0.0
  ev_site(:) = 0
  k=1
+write(*,*) 'nsites',nsites
  do isite =1,nsites
    do ievt=1,nevt
      if ( all_hash(ievt)==site_hash(isite) ) then
@@ -193,10 +196,12 @@ write(*,*) 'nevt',nevt
    end do
  end do
 
+
  do i=1,size(prob_M)
    write(*,'(A4,F5.2)') 'prob',prob_M(i)
    write(*,'(A2,I2)') 'on',ev_site(i)
  end do
+
 
   call random_number(rnd)
   call choose_p(prob_M,size(prob_M),rnd,idx)
@@ -296,6 +301,13 @@ end do
 
   nn = sum(connect(1,:))
   call pssbl_basis(map_coords,neigh,nn,lab,Amatrix)
+
+  !!-----------------------------------
+  !!! get the actual info of the chosen event
+  !!------------------------------------
+
+  call read_ordered_event(323,idx,ntyp,disp1)
+
   write(*,*) 'disp in event',disp
 
   allocate(coords_copy(1:n_in_map,1:3))
@@ -337,7 +349,7 @@ write(*,*) 'dispev',dispev
            write(*,*) 'dispev1-disp1',dispev(1)-disp(1)
            write(*,*) 'dispev2-disp2',dispev(2)-disp(2)
            write(*,*) 'dispev3-disp3',dispev(3)-disp(3)
-           goto 108
+!           goto 108
         endif
      end do 
   end do

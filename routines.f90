@@ -941,6 +941,105 @@ end subroutine Pancake_sort
 !write(*,*) '>>>>. end map'
   end subroutine map_site
 
+ 
+  subroutine map_site_PBC(isite,Rcut,coords,lat,types,map_coords,map_types,map_indices,nbvertex)
+   implicit none
+   !! extract coords within some Rcut of current site isite,
+   !! and write them in basis of this (first atom)
+   integer :: n !! number of all coords
+   integer :: i,k,j !! counter
+   real :: dist
+   real, dimension(3) :: COM
+
+   real, dimension(:,:), intent(in) :: coords
+   real, dimension(3,3), intent(in) :: lat
+   integer, dimension(:), intent(in) :: types
+   real, intent(in) :: Rcut
+   integer, intent(in) :: isite
+   real, allocatable, intent(out) :: map_coords(:,:)
+   integer, allocatable, intent(out) :: map_types(:), map_indices(:)
+   integer, intent(out) :: nbvertex
+
+   real, allocatable :: coords_copy(:,:)
+
+   n=size(coords,1)
+   allocate(coords_copy(n,size(coords,2)))
+!write(*,*) '>>>> in map, coord in'
+!do i =1,n
+! write(*,*) coords(i,:)
+!end do
+
+!write(*,*) '>>> in map, coord(isite)'
+!write(*,*) coords(isite,:)
+!write(*,*) '>>> coords(i,:) - coords(isite,:)'
+   do i = 1, n
+     coords_copy(i,:) = coords(i,:) - coords(isite,:)
+!write(*,*) coords_copy(i,:)
+   end do
+!write(*,*) 'periodic wrt coords(isite)'
+   do i = 1,n
+     call cart_to_crist(coords_copy(i,:),lat)
+     call periodic(coords_copy(i,:))
+     call crist_to_cart(coords_copy(i,:),lat)
+!write(*,*) coords_copy(i,:)
+   end do
+   ! set numbr of vertex within rcut
+   nbvertex = 1
+   do i=1,n
+     if (i==isite) cycle
+     dist = ( coords_copy(isite,1) - coords_copy(i,1) )**2 +&
+            ( coords_copy(isite,2) - coords_copy(i,2) )**2 +&
+            ( coords_copy(isite,3) - coords_copy(i,3) )**2
+     dist = sqrt(dist)
+     nbvertex = nbvertex + NINT(0.5*erfc(dist - Rcut))
+! write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
+   end do
+!write(*,*) 'nbvertex',nbvertex
+
+   allocate(map_coords(1:nbvertex,1:3))
+   allocate(map_indices(1:nbvertex))
+   allocate(map_types(1:nbvertex))
+   map_coords(:,:) = 0.0
+   map_indices(:) = isite
+   map_types(:) = types(isite)
+   !! get distances, if within cutoff, remember the vector and its index
+   k=2
+   do i=1,n
+     if (i==isite) cycle
+     dist = ( coords_copy(isite,1) - coords_copy(i,1) )**2 +&
+            ( coords_copy(isite,2) - coords_copy(i,2) )**2 +&
+            ( coords_copy(isite,3) - coords_copy(i,3) )**2
+     dist = sqrt(dist)
+     if (dist .le. Rcut ) then
+        map_coords(k,:) = coords_copy(i,:)-coords_copy(isite,:)
+!write(*,*) 'from routine'
+!write(*,*) 'map coords',k,(map_coords(k,j),j=1,2)
+        map_indices(k) = i
+        map_types(k) = types(i)
+!write(*,*) 'found neigh',k,'index',i,dist
+        k = k + 1
+     endif
+ 
+   end do
+!write(*,*) 'map from map'
+!do i=1,n
+! write(*,*) map_coords(i,:)
+!end do
+   
+!   call get_center_of_topology(map_coords,COM)
+
+!write(*,*) 'COM from map',COM
+!write(*,*) 'k',k
+
+!   do i=1,k-1
+!      map_coords(i,:) = map_coords(i,:) - COM(:)
+!   end do
+
+!   nat_in_map = k-1
+!write(*,*) '>>>>. end map'
+   deallocate(coords_copy)
+  end subroutine map_site_PBC
+
   
   subroutine get_hash_prob_new(fd,hash,prob,event_nat)
   !! read ordered events for hash and prob only! Actual dispersion and coordinates are read later
@@ -1443,6 +1542,51 @@ write(*,*) 'reading ordered event index',idx
   end subroutine read_sites3D_new
 
 
+  subroutine read_sites3D_pbc(fd_sites, nsites,site_hash, coord,lat)
+  !------------------------------
+  ! reading a more fancy site file, in which sites begin with a 'begin' line, 
+  !------------------------------
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!! how to allocate site_hash and coord somewhere else ???
+   implicit none
+   integer, intent(in) :: fd_sites
+   integer, intent(in) :: nsites
+   integer, allocatable, intent(out) :: site_hash(:)
+   real, allocatable, intent(out) :: coord(:,:)
+   real, dimension(3,3), intent(out) :: lat
+   real :: alat
+   integer :: isite
+   character(len=64) :: line
+   logical :: eof
+   integer :: i
+   
+   if (.not. allocated(site_hash)) allocate(site_hash(1:nsites))
+   if (.not. allocated(coord)) allocate(coord(1:nsites,1:3))
+    eof=.false.
+    do while (.not.eof)
+      call read_line(fd_sites,line,eof)
+      line=trim(adjustl(line))
+      if (line(1:3)=='lat' ) then
+         read(fd_sites,*) alat
+         do i = 1, 3
+           read(fd_sites,*) lat(i,1), lat(i,2), lat(i,3)
+         end do
+         lat = lat*alat
+      endif
+      if (line(1:5)=='begin') then
+        do isite=1,nsites
+          read(fd_sites,*) site_hash(isite), coord(isite,1), coord(isite,2), coord(isite,3)
+          call cart_to_crist(coord(isite,:),lat)
+          call periodic(coord(isite,:))
+          call crist_to_cart(coord(isite,:),lat)
+        end do
+        eof=.true.
+       endif
+    end do
+    rewind(fd_sites)
+  end subroutine read_sites3D_pbc
+
+
   subroutine pbcdist3D(A,B,Lx,Ly,Lz,dist)
   !--------------------------------
   ! distance between two points in 3-dimensions
@@ -1723,6 +1867,8 @@ write(*,*) 'reading ordered event index',idx
 
   subroutine projection(ntyp,colors,vectors,pen_depths,projs)
    !!  < R_i,k , e_alpha > * exp( | R_i,k | / mu_k )
+   !! this routine is strange.. distance should be done in cart, then switched to crist.
+   !! also, 'projs' should be intent(out)
    implicit none
 
    integer, intent(in) :: ntyp
@@ -1749,6 +1895,41 @@ write(*,*) 'reading ordered event index',idx
 ! write(*,*) projs(i,:)
 !end do
   end subroutine projection
+
+
+  subroutine projection_new(ntyp,colors,vectors,basis,pen_depths,projs)
+   !!  < R_i,k , e_alpha > * exp( | R_i,k | / mu_k )
+   implicit none
+
+   integer, intent(in) :: ntyp
+   integer, intent(in) :: colors(:)
+   real, intent(inout) :: vectors(:,:)
+   real, intent(in) :: basis(:,:)
+   real, intent(in) :: pen_depths(:)  !! mu_k
+   real, dimension(ntyp,3),intent(out) :: projs
+  
+   integer :: i
+   real :: dist
+
+write(*,*) '>>from projections'
+   projs(:,:) = 0.0d0
+   do i = 1, size(vectors,1)
+      dist = norm(vectors(i,:))
+write(*,*) '>>dist is',dist
+      call cart_to_crist(vectors(i,:),basis)
+! write(*,*) 'vector',colors(i),vectors(i,:)
+      projs(colors(i),1) = projs(colors(i),1) + &
+                           vectors(i,1) * exp( - dist / pen_depths( colors(i) ) )   
+      projs(colors(i),2) = projs(colors(i),2) + &
+                           vectors(i,2) * exp( - dist / pen_depths( colors(i) ) )   
+      projs(colors(i),3) = projs(colors(i),3) + &
+                           vectors(i,3) * exp( - dist / pen_depths( colors(i) ) )   
+   end do
+!write(*,*) 'proj x all   proj y all    proj z all'
+!do i = 1, ntyp
+! write(*,*) projs(i,:)
+!end do
+  end subroutine projection_new
 
 
   subroutine compare_array(array1, array2, tolerance, are_equal)
@@ -1869,6 +2050,12 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
 !    sumdos(j,:) = sum(sumdos(j,:))
 !  end do
 
+  !! sum all axes together, for normalization over the axes
+  do m = 1, maxtyp
+    sumdos(1,m) = sum(sumdos(:,m))
+    sumdos(:,m) = sumdos(1,m)
+  end do
+ 
   !! sum all colors, all axes together: for normalization over total integral
 !  sumdos(:,:) = sum(sumdos(:,:))
 
@@ -1955,6 +2142,13 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
 !  do j = 1, 3
 !    sumdos(j,:) = sum(sumdos(j,:))
 !  end do
+
+  !! sum all axes together, for normalization over the axes
+  do m = 1, maxtyp
+    sumdos(1,m) = sum(sumdos(:,m))
+    sumdos(:,m) = sumdos(1,m)
+  end do
+  
 
   !! sum all colors, all axes together: for normalization over total integral
 !  sumdos(:,:) = sum(sumdos(:,:))

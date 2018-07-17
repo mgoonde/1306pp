@@ -37,18 +37,21 @@
   
   real, allocatable :: dos(:,:,:)
   real, allocatable :: refdos(:,:)
-  real, allocatable :: overlap(:)
+  real, allocatable :: overlap(:,:)
   real, allocatable :: sigma(:)
   integer :: nbsteps, mm, kk
   character(len=50) :: fname
  
-  real :: sum_ovrl
+  real :: sum_ovrl, m1, s1
  
   site_fd = 111
   open(unit=site_fd,file='site.in',status='old')
 
   rcut_fd = 112
   open(unit = rcut_fd,file='rcut.in',status='old')
+
+  call system("mkdir step1")
+
  call set_random_seed()
 
  !!!----------------------------
@@ -354,7 +357,10 @@ sigma(:) = 0.05
      do j = 1,nn
         if ( Amatrix(i,j) == 0 ) cycle
         bases(2,:) = Amatrix(i,j) * neigh(j,:)
+        bases(2,:) = bases(2,:)/norm(bases(2,:))
+
         bases(2,:) = bases(2,:) - inner_prod(bases(2,:),bases(1,:))*bases(1,:)
+
         bases(2,:) = bases(2,:)/norm(bases(2,:))
         bases(3,:) = cross(bases(1,:),bases(2,:))
         bases(3,:) = bases(3,:)/norm(bases(3,:))
@@ -364,14 +370,15 @@ write(*,*) bases(1,:)
 write(*,*) bases(2,:)
 write(*,*) bases(3,:)
 !write(*,*) 'map in this basis'
-        do ii = 1,size(coords_copy,1)
-           call cart_to_crist(coords_copy(ii,:),bases)
+!        do ii = 1,size(coords_copy,1)
+!           call cart_to_crist(coords_copy(ii,:),bases)
 !           write(*,*) coords_copy(ii,:)
-        end do
+!        end do
 !write(*,*) 'disp', disp
 !        dispev = sum(coords_copy,1)
 !write(*,*) 'dispev',dispev
-        call projection(maxtyp,map_types,coords_copy,pen_depths,projs)
+!        call projection(maxtyp,map_types,coords_copy,pen_depths,projs)
+        call projection_new(maxtyp,map_types,coords_copy,bases,pen_depths,projs)
 write(*,*) 'projection in this basis are'
         do ii = 1 , size(projs,1)
            write(*,*) projs(ii,:)
@@ -439,20 +446,26 @@ write(*,*) 'here1'
        !! read the reference dos and calculate the overlap for each color and axis
        sum_ovrl = 0.0
        write(*,*) repeat('-',30)
+       allocate(overlap(1:3,1:maxtyp))
+       overlap(:,:) = 0.0
        do jj = 1, 3
         call read_ref_dos(ev_chosen, jj, maxtyp,nbsteps, refdos)
-        allocate(overlap(1:maxtyp))
-        overlap(:) = 0.0
         do mm = 1,nbsteps
            do kk = 1,maxtyp
-              overlap(kk) = overlap(kk) + min(dos(mm,jj,kk),refdos(mm,kk))
+              overlap(jj,kk) = overlap(jj,kk) + min(dos(mm,jj,kk),refdos(mm,kk))
            end do
         end do
-        write(*,*) 'overlap in axis',jj,'is',overlap
-        sum_ovrl = sum_ovrl + sum(overlap)
-        deallocate(overlap)
+        write(*,*) 'overlap in axis',jj,'is',overlap(jj,:)
+        sum_ovrl = sum_ovrl + sum(overlap(jj,:))
        end do
        write(*,*) repeat('-',30), 'sum in overlap:',sum_ovrl, sum_ovrl/6.0*100
+       do kk = 1, maxtyp
+         call stdev(overlap(:,kk),m1,s1)
+         write(*,*) 'stdev of color: ',kk,' mean: ',m1,' sigma: ',s1
+       end do
+       deallocate(overlap)
+       write(*,*) repeat('-',50)
+       write(*,*)
     
         !! write a file with the configuration and the basis as 'forces' in .xsf format (xcrysden)
         write(fname,'(a,i0,a,i0,a,i0,a,i0,a)') 'step1/site',ev_site(idx),'event',ev_chosen&

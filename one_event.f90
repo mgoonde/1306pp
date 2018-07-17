@@ -237,13 +237,17 @@ deallocate(sorted_from_global_color)
    write(*,*) 'mean on z',sum1,'sigma on z',sum2
 
    write(*,*) 'projections resolved by color'
+   do k = 1,ev_init_nb
+     call crist_to_cart(ev_init_map(k,:),bases)
+   end do
 
    allocate(projs(1:maxtyp,1:3))
    allocate(pen_depths(1:maxtyp))
    do k = 1 , maxtyp
      pen_depths(k) = 10.0
    end do
-   call projection(maxtyp,ev_init_map_types,ev_init_map,pen_depths,projs)
+!   call projection(maxtyp,ev_init_map_types,ev_init_map,pen_depths,projs)
+   call projection_new(maxtyp,ev_init_map_types,ev_init_map,bases,pen_depths,projs)
    write(ordered_fd,*) 'maxtyp',maxtyp
    do k = 1, maxtyp
      write(ordered_fd,*) k, projs(k,:)

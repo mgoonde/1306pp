@@ -97,6 +97,7 @@ write(*,*) repeat('>',60)
    call map_site(isite,Rcut,coords,types,map_coords,map_types,map_indices,n_in_map)
 !write(*,*) isite,'/',nsites
 write(*,*) 'map around site',isite
+write(*,*) n_in_map
 do i = 1, n_in_map
  write(*,*) map_types(i),map_coords(i,:)
 end do
@@ -325,19 +326,20 @@ pen_depths(:) = 20.0
         bases(3,:) = cross(bases(1,:),bases(2,:))
         bases(3,:) = bases(3,:)/norm(bases(3,:))
 !write(*,*) 'basis'
-write(*,*) 'next basis'
+write(*,*) 'next basis',i,j
 write(*,*) bases(1,:)
 write(*,*) bases(2,:)
 write(*,*) bases(3,:)
 !write(*,*) 'map in this basis'
-        do ii = 1,size(coords_copy,1)
-           call cart_to_crist(coords_copy(ii,:),bases)
+!        do ii = 1,size(coords_copy,1)
+!           call cart_to_crist(coords_copy(ii,:),bases)
 !           write(*,*) coords_copy(ii,:)
-        end do
+!        end do
 !write(*,*) 'disp', disp
 !        dispev = sum(coords_copy,1)
 !write(*,*) 'dispev',dispev
-        call projection(maxtyp,map_types,coords_copy,pen_depths,projs)
+!        call projection(maxtyp,map_types,coords_copy,pen_depths,projs)
+        call projection_new(maxtyp,map_types,coords_copy,bases,pen_depths,projs)
 write(*,*) 'projection in this basis are'
         do ii = 1 , size(projs,1)
            write(*,*) projs(ii,:)
