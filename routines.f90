@@ -58,14 +58,65 @@ module routines
   end function atang
 
 
-  subroutine find_neighbour_matrix(coords,connect,lab,neigh)
+  subroutine find_neighbour_list(nat,connect,indices,isite,neigh_list)
+  !! find just the list of indices that are first neighbours to isite
+   implicit none
+   integer, intent(in) :: nat
+   integer, dimension(nat,nat), intent(in) :: connect
+   integer, dimension(nat), intent(in) :: indices
+   integer, intent(in) :: isite
+   integer, dimension(12), intent(out) :: neigh_list
+   
+   integer :: i, k, nb, con
+
+   neigh_list(:) = 0
+   k = 0
+   nb = sum( connect( isite, :) )  !! nb is the total number of connections of isite
+   do i = 1, nat
+     con = connect(isite,i)
+     k = k + con
+     if( con .ne. 0 ) neigh_list(k) = indices(i)
+     if( k .eq. nb ) exit  !! k is all neighbours
+   end do
+  end subroutine find_neighbour_list
+  
+
+  subroutine find_neighbour_coords(nat,coords,connect,isite,nn,neigh)
+  !! find the coordinates of all first neighbours to isite, from the connectivity
+   implicit none
+   integer, intent(in) :: nat
+   real, dimension(nat,3), intent(in) :: coords
+   integer, dimension(nat,nat), intent(in) :: connect
+   integer, intent(in) :: isite
+   integer, intent(in) :: nn  !! number of neighbours of isite
+   real, dimension(12,3), intent(out) :: neigh  
+
+   integer :: i, k, con
+   
+   neigh(:,:) = 0.0
+   k = 0
+!write(*,*) 'nn',nn
+   do i = 1, nat
+     con = connect(isite, i)
+     k = k + con
+     if ( con .ne. 0 ) neigh(k,:) = con * coords(i,:)
+!write(*,*) k
+     if ( k .eq. nn ) exit
+   end do
+
+  end subroutine find_neighbour_coords
+
+
+  subroutine find_neighbour_matrix(nat,coords,connect,indices,neigh,neigh_list)
   !! find the nearest neighbours, by chemistry there are maximum 12
    implicit none
-   real, intent(in) :: coords(:,:)
-   integer, intent(in) :: lab(:)
+   integer, intent(in) :: nat
+   real, dimension(nat,3),intent(in) :: coords
+   integer, dimension(nat), intent(in) :: indices
    integer, parameter :: n=12
    real, dimension(n,3), intent(out) :: neigh
-   integer, intent(in) :: connect(:,:)
+   integer, dimension(nat,nat),intent(in) :: connect
+   integer, dimension(12),intent(out) :: neigh_list
    integer :: nb
    integer :: k, i
    
@@ -76,14 +127,16 @@ module routines
 !end do
 !write(*,*)
    neigh(:,:) = 0.0
+   neigh_list(:) = 0
    k = 0
    nb = sum( connect(1,:) )  !! is the total number of connections (=neighbors)
 !write(*,*) nb
-   do i = 1, size(connect,1)  !! loop through whole connect
+   do i = 1, nat  !! loop through whole connect
      k = k + connect(1, (i) )
      if ( connect(1,(i)) == 0 ) cycle
 !write(*,*) connect(1,(i)),coords((i),:)
      neigh(k,:) = connect(1,(i))*coords((i),:)
+     neigh_list(k) = indices(i)
      if ( k == nb ) exit  !! k is all the neighbors
    end do
 !write(*,*) 'found neigh'
@@ -94,37 +147,79 @@ module routines
   end subroutine find_neighbour_matrix
 
 
-  subroutine pssbl_basis(map_coords,neigh,nn,lab,A)
+  subroutine pssbl_basis_1(nat,map_coords,neigh,nn,A)
    implicit none
-   real, intent(in) :: map_coords(:,:)
-   real, intent(in) :: neigh(:,:)
+   integer, intent(in) :: nat
+   real, dimension(nat,3),intent(in) :: map_coords
    integer, intent(in) :: nn ! number of nonzero neighbours
-   integer, intent(in) :: lab(:)
-   integer, allocatable, intent(out) :: A(:,:) ! matrix of possible basis vector indices
+   real, dimension(12,3),intent(in) :: neigh
+   integer, dimension(nn,nn), intent(out) :: A ! matrix of possible basis vector indices
 
-   real, dimension(3) :: r_me, r_i, r_j
-   real, dimension(3,3) :: basis
+   real, dimension(3) :: r_i, r_j
    real :: nrm_i, nrm_j, proj_ij, collin
    real :: tolerance !! for collinearity
-   integer :: i,j,n, r_me_ind, ii
-   real, allocatable :: coords_copy(:,:)
+   integer :: i,j
 
    tolerance = 0.9   !! in units of collinearity (0 to 1) -- if collinearity of two
                      !! vectors is below tolerance, they are accepted as possible basis.
                      !! Collinearity = 1  -->  vectors are collinear
                      !! collinearity = 0  -->  vectors are orthogonal
 
-   allocate(A(1:nn, 1:nn))
    A(:,:) = 0
 
-   allocate(coords_copy(1:size(map_coords,1),1:3))
-   do i = 1, size(map_coords,1)
-     coords_copy(i,:) = map_coords(i,:)
+   !! find the matrix of possible basis vector indeces, format:
+   !! first row gives possible second vector index when the first
+   !!  'neighbor' vector is first basis vector. the position in the row gives
+   !! the index of the second basis vector in the 'neighbor' matrix.
+   do i = 1, 12
+     r_i = neigh(i,:)
+     nrm_i = norm( r_i )
+     if ( nrm_i == 0.0 ) cycle
+     do j = 1, 12
+       if ( i == j ) cycle
+       r_j = neigh(j,:)
+       nrm_j = norm( r_j )
+       if ( nrm_j == 0.0 ) cycle
+       proj_ij = inner_prod( r_i, r_j )
+       collin = proj_ij / (nrm_i * nrm_j ) 
+       A(i,j) = nint(0.5*erfc( abs(collin) - tolerance ))
+     end do
    end do
 
-   r_me_ind = minloc(lab(:), 1)
+  end subroutine pssbl_basis_1
+
+
+  subroutine pssbl_basis(nat,map_coords,neigh,nn,lab,A)
+   implicit none
+   integer, intent(in) :: nat
+   real, dimension(nat,3),intent(in) :: map_coords
+   integer, intent(in) :: nn ! number of nonzero neighbours
+   real, dimension(12,3),intent(in) :: neigh
+   integer, dimension(nat),intent(in) :: lab
+   integer, dimension(nn,nn), intent(out) :: A ! matrix of possible basis vector indices
+
+   real, dimension(3) :: r_me, r_i, r_j
+   real, dimension(3,3) :: basis
+   real :: nrm_i, nrm_j, proj_ij, collin
+   real :: tolerance !! for collinearity
+   integer :: i,j,n, r_me_ind, ii
+!   real, allocatable :: coords_copy(:,:)
+
+   tolerance = 0.9   !! in units of collinearity (0 to 1) -- if collinearity of two
+                     !! vectors is below tolerance, they are accepted as possible basis.
+                     !! Collinearity = 1  -->  vectors are collinear
+                     !! collinearity = 0  -->  vectors are orthogonal
+
+   A(:,:) = 0
+
+!   allocate(coords_copy(1:size(map_coords,1),1:3))
+!   do i = 1, size(neigh,1)
+!     write(*,*) neigh(i,:)
+!   end do
+
+!   r_me_ind = minloc(lab(:), 1)
 !write(*,*) ' r_me_ind in canon', r_me_ind
-   r_me = map_coords( lab(r_me_ind), :)
+!   r_me = map_coords( lab(r_me_ind), :)
 !write(*,*) ' r_me',r_me
 
    !! find the matrix of possible basis vector indeces, format:
@@ -135,7 +230,7 @@ module routines
      r_i = neigh(i,:)
      nrm_i = norm( r_i )
      if ( nrm_i == 0.0 ) cycle
-     do j = 1,12
+     do j = 1, 12
        if ( i == j ) cycle
        r_j = neigh(j,:)
        nrm_j = norm( r_j )
@@ -152,38 +247,6 @@ module routines
 ! do i = 1, nn
 !write(*,*) A(i,:)
 !end do
-
-
-!!!!!!--------THIS PART IS DONE LATER IN CODE------------------------------------
-!   !! with A, find all possible combinations of 'neighbor' vectors that form a basis, then
-!   !! write the system in that basis and get the dispersion on each axis.
-!   do i = 1, nn
-!     basis(1,:) = neigh(i,:)
-!     basis(1,:) = basis(1,:)/norm(basis(1,:))
-!!     basis(2,:) = A(i,:)
-!     do j = 1,nn
-!        if ( A(i,j) == 0 ) cycle
-!        basis(2,:) = A(i,j) * neigh(j,:)
-!        basis(2,:) = basis(2,:)/norm(basis(2,:))
-!        basis(3,:) = cross(basis(1,:),basis(2,:))
-!        basis(3,:) = basis(3,:)/norm(basis(3,:))
-!!write(*,*) 'basis'
-!!write(*,*) basis(1,:)
-!!write(*,*) basis(2,:)
-!!write(*,*) basis(3,:)
-!!write(*,*) 'map in this basis'
-!        do ii = 1,size(coords_copy,1)
-!           call cart_to_crist(coords_copy(ii,:),basis)
-!!           write(*,*) coords_copy(ii,:)
-!        end do
-!!write(*,*) 'disp', sum(coords_copy,1)
-!!write(*,*)
-!        do ii = 1,size(map_coords,1)
-!           coords_copy(ii,:) = map_coords(ii,:)
-!        end do
-!     end do
-!   end do
-!!!!!!!!-----------------------------------------------------------------------
 
   end subroutine pssbl_basis
 
@@ -228,8 +291,36 @@ module routines
   end subroutine get_atan2
 
 
-  subroutine make_connectivity(nat,coords,types,color_cutoff,connect,lab,color,ntyp,maxtyp,&
-                               sorted_from_global_color )
+  subroutine generate_connect(nat,coords,types,n_col,color_cutoff,connect)
+  !! generate just the connectivity matrix from coords 
+   implicit none
+   integer, intent(in) :: nat
+   real, dimension(nat,3), intent(in) :: coords
+   integer, dimension(nat), intent(in) :: types
+   integer, intent(in) :: n_col
+   real, dimension(n_col,n_col), intent(in) :: color_cutoff
+   integer, dimension(nat,nat), intent(out) :: connect
+
+   integer :: i, j, k
+   real :: dij
+
+   do i = 1, nat
+     do j = i+1, nat
+       dij = 0.0
+       do k = 1, 3
+         dij = dij + (coords(j,k)-coords(i,k))**2
+       end do
+       dij = sqrt(dij)
+       connect(i,j) = NINT( 0.5*erfc(dij-color_cutoff( types(i),types(j) )))
+       connect(j,i) = connect(i,j)
+     end do
+   end do
+  end subroutine generate_connect
+
+
+  subroutine make_connectivity(nat, coords, types,&
+                               color_cutoff, connect, lab, color,&
+                               ntyp, maxtyp, sorted_from_global_color )
    implicit none
    integer, intent(in) :: nat
    real, intent(inout) :: coords(:,:)
@@ -242,6 +333,7 @@ module routines
    integer, allocatable :: global_from_sorted_color(:)
    real :: dij
    integer :: i, j, k
+   integer :: n_col
    
    allocate( connect(1:nat, 1:nat) )
    connect(:,:) = 0
@@ -252,41 +344,9 @@ module routines
    allocate(sorted_from_global_color(1:nat))
    allocate(global_from_sorted_color(1:nat))
 
-!   call sort_property(nat,types,color,global_from_sorted_color,sorted_from_global_color)
-!write(*,*) 'sorted color',color
-!write(*,*) 'types',types
-!write(*,*) 'maxval types',maxval(types)
-!   maxtyp = maxval(types)
-!   ntyp = 0
-!   do i = 1, size(color)
-!     if(color(i) == 0) ntyp = ntyp + 1
-!   end do
-!write(*,*) 'ntyp',ntyp
-!write(*,*) 'global from sorted',global_from_sorted_color
-!write(*,*) 'sorted from global',sorted_from_global_color
-!write(*,*) 'before sort'
-!do i = 1, nat
-! write(*,*) types(i), coords(i,:)
-!end do
-!!   call sort_to_order(nat,coords,global_from_sorted_color)  !! either this sort, or use lab(i)
 
-! write(*,*) 'after sort'
-!   do i = 1, nat
-!    write(*,*) types(i), coords(i,:)
-!   end do
-   do i=1,nat
-     do j=i+1, nat
-       dij=0.0
-       do k = 1,3
-         dij = dij + (coords(j,k)-coords(i,k))**2
-       end do
-       dij = sqrt(dij)
-       connect(i,j) = NINT( 0.5*erfc(dij-color_cutoff( types(i),types(j) )))
-!  write(*,*)  color_cutoff( types(i),types(j) )
-       connect(j,i) = NINT( 0.5*erfc(dij-color_cutoff( types(j),types(i) )))
-!  write(*,*) i,j,dij,connect(i,j)
-     end do
-   end do
+   n_col = size(color_cutoff,1)
+   call generate_connect(nat,coords,types, n_col , color_cutoff, connect )
 
 !write(*,*) 'before sort types',types
 !write(*,*) 'before sort color',color
@@ -414,18 +474,17 @@ module routines
   end subroutine rotate
 
 
-  subroutine set_color_cutoff(color_cutoff)
+  subroutine set_color_cutoff(color_cutoff,n_color)
   !! set the color_cutoff matrix
   !! first line is not read!!
   implicit none
-  real, allocatable, intent(out) :: color_cutoff(:,:)
-  integer :: n_color
+  integer,intent(in) :: n_color !! is the maximum number of colors,
+                                !! is the size of color_cutoff matrix
+  real, dimension(n_color,n_color), intent(out) :: color_cutoff
   integer :: i, j
   real :: dij
 
   open(unit=555,file='neighbor_table.dat',status='old',action='read')
-  n_color = 10
-  allocate(color_cutoff(1:n_color,1:n_color))
   color_cutoff(:,:) = 0.0
   read(555,*)
   do while(.true.)
@@ -437,75 +496,75 @@ module routines
   end subroutine set_color_cutoff
 
 
-  subroutine gen_basis(nat,coords,basis)
-  !! find a "typical vector" of the system, 
-  !! sum of all contributions of each components is the typical vector's component in
-  !! that direction. Then find typical rotation around each axis and apply it to the 
-  !! typical vector around each corresponding axis separately. This should give 4 vectors:
-  !! namely, the typical one, the one rotated around z, y, and x. Could check which 
-  !! combination is ok for basis.
+! subroutine gen_basis(nat,coords,basis)
+! !! find a "typical vector" of the system, 
+! !! sum of all contributions of each components is the typical vector's component in
+! !! that direction. Then find typical rotation around each axis and apply it to the 
+! !! typical vector around each corresponding axis separately. This should give 4 vectors:
+! !! namely, the typical one, the one rotated around z, y, and x. Could check which 
+! !! combination is ok for basis.
 
-  !! unused, philosophy of basis has been changed
-   implicit none
-   integer, intent(in) :: nat
-   real, intent(in) :: coords(:,:)
-   real, intent(out) :: basis(3,3)
-   real :: typical(3), typical_o(3)
-   real :: dum, pi2, thetaz, thetax, thetay
-   integer :: i
+! !! unused, philosophy of basis has been changed
+!  implicit none
+!  integer, intent(in) :: nat
+!  real, intent(in) :: coords(:,:)
+!  real, intent(out) :: basis(3,3)
+!  real :: typical(3), typical_o(3)
+!  real :: dum, pi2, thetaz, thetax, thetay
+!  integer :: i
 
- !! pi/2
-  pi2 = 2.0*atan(1.0)
+!!! pi/2
+! pi2 = 2.0*atan(1.0)
 
- !! sum all components in the cluster
-   do i=1, nat
-     typical(1) = typical(1) + coords(i,1)
-     typical(2) = typical(2) + coords(i,2)
-     typical(3) = typical(3) + coords(i,3)
-   end do
-   typical = typical/norm(typical)
-   typical_o(:) = typical(:)
-  !! find rotation in the xy plane (around z axis):
-  !! theta = pi/2 - sum_i ( atan( y_i / x_i ) )    ( what about abs(atan()) ;; and 1/nat?)
-   thetaz = 0.0
-   do i=1,nat
-     dum = coords(i,2) / coords(i,1)
-     dum = pi2 - atang(dum)
-     thetaz = thetaz+dum
-   end do
+!!! sum all components in the cluster
+!  do i=1, nat
+!    typical(1) = typical(1) + coords(i,1)
+!    typical(2) = typical(2) + coords(i,2)
+!    typical(3) = typical(3) + coords(i,3)
+!  end do
+!  typical = typical/norm(typical)
+!  typical_o(:) = typical(:)
+! !! find rotation in the xy plane (around z axis):
+! !! theta = pi/2 - sum_i ( atan( y_i / x_i ) )    ( what about abs(atan()) ;; and 1/nat?)
+!  thetaz = 0.0
+!  do i=1,nat
+!    dum = coords(i,2) / coords(i,1)
+!    dum = pi2 - atang(dum)
+!    thetaz = thetaz+dum
+!  end do
 
-  !! find rotation in the yz plane (around x axis):
-  !! theta = pi/2 - sum_i ( atan( z_i / y_i ) )    ( what about abs(atan()) ;; and 1/nat?)
-   thetax = 0.0
-   do i=1,nat
-     dum = coords(i,3) / coords(i,2)
-     dum = pi2 - atang(dum)
-     thetax = thetax+dum
-   end do
-  
-  !! find rotation in the xz plane (around y axis):
-  !! theta = pi/2 - sum_i ( atan( z_i / x_i ) )    ( what about abs(atan()) ;; and 1/nat?)
-   thetay = 0.0
-   do i=1,nat
-     dum = coords(i,3) / coords(i,1)
-     dum = pi2 - atang(dum)
-     thetay = thetay+dum
-   end do
+! !! find rotation in the yz plane (around x axis):
+! !! theta = pi/2 - sum_i ( atan( z_i / y_i ) )    ( what about abs(atan()) ;; and 1/nat?)
+!  thetax = 0.0
+!  do i=1,nat
+!    dum = coords(i,3) / coords(i,2)
+!    dum = pi2 - atang(dum)
+!    thetax = thetax+dum
+!  end do
+! 
+! !! find rotation in the xz plane (around y axis):
+! !! theta = pi/2 - sum_i ( atan( z_i / x_i ) )    ( what about abs(atan()) ;; and 1/nat?)
+!  thetay = 0.0
+!  do i=1,nat
+!    dum = coords(i,3) / coords(i,1)
+!    dum = pi2 - atang(dum)
+!    thetay = thetay+dum
+!  end do
 
-  !! rotate typical around each axis
-   call rotate(typical,0.0,0.0,thetaz)
-   basis(1,:) = typical(:)
-   typical = typical_o
+! !! rotate typical around each axis
+!  call rotate(typical,0.0,0.0,thetaz)
+!  basis(1,:) = typical(:)
+!  typical = typical_o
 
-   call rotate(typical,thetax,0.0,0.0)
-   basis(2,:) = typical(:)
-   typical = typical_o
+!  call rotate(typical,thetax,0.0,0.0)
+!  basis(2,:) = typical(:)
+!  typical = typical_o
 
-   call rotate(typical,0.0,thetay,0.0)
-   basis(3,:) = typical(:)
-   typical = typical_o
+!  call rotate(typical,0.0,thetay,0.0)
+!  basis(3,:) = typical(:)
+!  typical = typical_o
 
-  end subroutine gen_basis
+! end subroutine gen_basis
 
 
   subroutine order_by_distance(nat,coords,A)
@@ -862,30 +921,17 @@ end subroutine Pancake_sort
   end subroutine get_center_of_topology
 
 
-  subroutine map_site(isite,Rcut,coords,types,map_coords,map_types,map_indices,nbvertex)
+  subroutine count_nbvertex(n,coords,isite,Rcut,nbvertex)
    implicit none
-   !! extract coords within some Rcut of current site isite,
-   !! and write them in basis of this (first atom)
-   integer :: n !! number of all coords
-   integer :: i,k,j !! counter
+   integer, intent(in) :: n ! number of all coords
+   real, dimension(n,3) :: coords ! the coords
+   integer, intent(in) :: isite ! site index around which to count
+   real, intent(in) :: Rcut ! range 
+   integer, intent(out) :: nbvertex ! the output number of vertices in range
+   
    real :: dist
-   real, dimension(3) :: COM
+   integer :: i
 
-   real, dimension(:,:), intent(in) :: coords
-   integer, dimension(:), intent(in) :: types
-   real, intent(in) :: Rcut
-   integer, intent(in) :: isite
-   real, allocatable, intent(out) :: map_coords(:,:)
-   integer, allocatable, intent(out) :: map_types(:), map_indices(:)
-   integer, intent(out) :: nbvertex
-
-   n=size(coords,1)
-!write(*,*) '>>>> in map, coord in'
-!do i =1,n
-! write(*,*) coords(i,:)
-!end do
-
-   ! set numbr of vertex within rcut
    nbvertex = 1
    do i=1,n
      if (i==isite) cycle
@@ -898,15 +944,74 @@ end subroutine Pancake_sort
    end do
 !write(*,*) 'nbvertex',nbvertex
 
-   allocate(map_coords(1:nbvertex,1:3))
-   allocate(map_indices(1:nbvertex))
-   allocate(map_types(1:nbvertex))
+  end subroutine count_nbvertex
+
+
+  subroutine count_nbvertex_pbc(nat,coords,isite,Rcut,lat,nbvertex)
+   implicit none
+   integer, intent(in) :: nat ! number of all coords
+   real, dimension(nat,3), intent(in) :: coords ! the coords
+   real, dimension(nat,3) :: coords_copy ! the coords
+   integer, intent(in) :: isite ! site index around which to count
+   real, intent(in) :: Rcut ! range 
+   real, dimension(3,3), intent(in) :: lat
+   integer, intent(out) :: nbvertex ! the output number of vertices in range
+   
+   real :: dist
+   integer :: i
+   
+   do i = 1, nat
+     coords_copy(i,:) = coords(i,:) - coords(isite,:)
+   end do
+
+   do i = 1, nat
+     call cart_to_crist(coords_copy(i,:),lat)
+     call periodic(coords_copy(i,:))
+     call crist_to_cart(coords_copy(i,:),lat)
+   end do
+
+   nbvertex = 0
+   do i=1,nat
+!     if (i==isite) cycle
+     dist = ( coords_copy(isite,1) - coords_copy(i,1) )**2 +&
+            ( coords_copy(isite,2) - coords_copy(i,2) )**2 +&
+            ( coords_copy(isite,3) - coords_copy(i,3) )**2
+     dist = sqrt(dist)
+!     nbvertex = nbvertex + NINT(0.5*erfc(dist - Rcut))
+     if( dist .le. Rcut ) nbvertex = nbvertex + 1
+!     if( dist .le. Rcut ) write(*,*) 'dist',dist,'idx',i,nbvertex
+! write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
+   end do
+!write(*,*) 'nbvertex',nbvertex
+
+  end subroutine count_nbvertex_pbc
+
+
+  subroutine map_site(isite,Rcut,&
+                      nat,coords,types,&
+                      nbvertex,map_coords,map_types,map_indices)
+   implicit none
+   !! extract coords within some Rcut of current site isite,
+   !! and write them in basis of this (first atom)
+   integer :: i,k,j !! counter
+   real :: dist
+   real, dimension(3) :: COM
+
+   integer, intent(in) :: nat !! number of all coords 
+   integer, intent(in) :: nbvertex !! number of vertices in rcut
+   real, dimension(nat,3), intent(in) :: coords !! all coords
+   integer, dimension(nat), intent(in) :: types !! types of all
+   real, intent(in) :: Rcut
+   integer, intent(in) :: isite
+   real, dimension(nbvertex,3), intent(out) :: map_coords
+   integer, dimension(nbvertex), intent(out) :: map_types, map_indices
+
    map_coords(:,:) = 0.0
    map_indices(:) = isite
    map_types(:) = types(isite)
    !! get distances, if within cutoff, remember the vector and its index
    k=2
-   do i=1,n
+   do i=1,nat
      if (i==isite) cycle
      dist = ( coords(isite,1) - coords(i,1) )**2 +&
             ( coords(isite,2) - coords(i,2) )**2 +&
@@ -921,49 +1026,33 @@ end subroutine Pancake_sort
 !write(*,*) 'found neigh',k,'index',i,dist
         k = k + 1
      endif
- 
    end do
-!write(*,*) 'map from map'
-!do i=1,n
-! write(*,*) map_coords(i,:)
-!end do
-   
-!   call get_center_of_topology(map_coords,COM)
-
-!write(*,*) 'COM from map',COM
-!write(*,*) 'k',k
-
-!   do i=1,k-1
-!      map_coords(i,:) = map_coords(i,:) - COM(:)
-!   end do
-
-!   nat_in_map = k-1
-!write(*,*) '>>>>. end map'
   end subroutine map_site
 
  
-  subroutine map_site_PBC(isite,Rcut,coords,lat,types,map_coords,map_types,map_indices,nbvertex)
+  subroutine map_site_PBC(isite,Rcut,&
+                          nat,coords,lat,types,&
+                          nbvertex,map_coords,map_types,map_indices)
    implicit none
    !! extract coords within some Rcut of current site isite,
    !! and write them in basis of this (first atom)
-   integer :: n !! number of all coords
    integer :: i,k,j !! counter
    real :: dist
    real, dimension(3) :: COM
 
-   real, dimension(:,:), intent(in) :: coords
+   integer, intent(in) :: nat
+   integer, intent(in) :: nbvertex
+   real, dimension(nat,3), intent(in) :: coords
    real, dimension(3,3), intent(in) :: lat
-   integer, dimension(:), intent(in) :: types
+   integer, dimension(nat), intent(in) :: types
    real, intent(in) :: Rcut
    integer, intent(in) :: isite
-   real, allocatable, intent(out) :: map_coords(:,:)
-   integer, allocatable, intent(out) :: map_types(:), map_indices(:)
-   integer, intent(out) :: nbvertex
+   real, dimension(nbvertex,3), intent(out) :: map_coords
+   integer, dimension(nbvertex), intent(out) :: map_types, map_indices
 
    real, allocatable :: coords_copy(:,:)
 
-   n=size(coords,1)
-   allocate(coords_copy(n,size(coords,2)))
+   allocate(coords_copy(nat,3))
 !write(*,*) '>>>> in map, coord in'
 !do i =1,n
 ! write(*,*) coords(i,:)
@@ -972,46 +1061,35 @@ end subroutine Pancake_sort
 !write(*,*) '>>> in map, coord(isite)'
 !write(*,*) coords(isite,:)
 !write(*,*) '>>> coords(i,:) - coords(isite,:)'
-   do i = 1, n
+   do i = 1, nat
      coords_copy(i,:) = coords(i,:) - coords(isite,:)
+!     coords_copy(i,:) = coords(i,:) 
 !write(*,*) coords_copy(i,:)
    end do
 !write(*,*) 'periodic wrt coords(isite)'
-   do i = 1,n
+   do i = 1,nat
      call cart_to_crist(coords_copy(i,:),lat)
      call periodic(coords_copy(i,:))
      call crist_to_cart(coords_copy(i,:),lat)
 !write(*,*) coords_copy(i,:)
    end do
-   ! set numbr of vertex within rcut
-   nbvertex = 1
-   do i=1,n
-     if (i==isite) cycle
-     dist = ( coords_copy(isite,1) - coords_copy(i,1) )**2 +&
-            ( coords_copy(isite,2) - coords_copy(i,2) )**2 +&
-            ( coords_copy(isite,3) - coords_copy(i,3) )**2
-     dist = sqrt(dist)
-     nbvertex = nbvertex + NINT(0.5*erfc(dist - Rcut))
-! write(*,*) 'distance',dist, nint(0.5*erfc(dist-Rcut)),nbvertex
-   end do
-!write(*,*) 'nbvertex',nbvertex
 
-   allocate(map_coords(1:nbvertex,1:3))
-   allocate(map_indices(1:nbvertex))
-   allocate(map_types(1:nbvertex))
    map_coords(:,:) = 0.0
+   map_coords(1,:) = coords(isite,:)
    map_indices(:) = isite
    map_types(:) = types(isite)
    !! get distances, if within cutoff, remember the vector and its index
    k=2
-   do i=1,n
+   do i=1,nat
      if (i==isite) cycle
      dist = ( coords_copy(isite,1) - coords_copy(i,1) )**2 +&
             ( coords_copy(isite,2) - coords_copy(i,2) )**2 +&
             ( coords_copy(isite,3) - coords_copy(i,3) )**2
      dist = sqrt(dist)
      if (dist .le. Rcut ) then
-        map_coords(k,:) = coords_copy(i,:)-coords_copy(isite,:)
+!write(*,*) 'from map dist',dist
+!        map_coords(k,:) = coords_copy(i,:)-coords_copy(isite,:)
+        map_coords(k,:) = coords_copy(i,:)+coords(isite,:)
 !write(*,*) 'from routine'
 !write(*,*) 'map coords',k,(map_coords(k,j),j=1,2)
         map_indices(k) = i
@@ -1025,18 +1103,13 @@ end subroutine Pancake_sort
 !do i=1,n
 ! write(*,*) map_coords(i,:)
 !end do
-   
-!   call get_center_of_topology(map_coords,COM)
 
-!write(*,*) 'COM from map',COM
-!write(*,*) 'k',k
-
-!   do i=1,k-1
-!      map_coords(i,:) = map_coords(i,:) - COM(:)
+!   do i = 1,nbvertex
+!     call cart_to_crist(map_coords(i,:),lat)
+!     call periodic(map_coords(i,:))
+!     call crist_to_cart(map_coords(i,:),lat)
 !   end do
 
-!   nat_in_map = k-1
-!write(*,*) '>>>>. end map'
    deallocate(coords_copy)
   end subroutine map_site_PBC
 
@@ -1073,6 +1146,37 @@ end subroutine Pancake_sort
 !   rewind(fd)
 
   end subroutine get_hash_prob_new
+
+  
+  subroutine get_hash_prob_new_1(fd,hash,prob)
+  !! read ordered events for hash and prob only! Actual dispersion and coordinates are read later
+   implicit none
+   integer, intent(in) :: fd
+   integer, allocatable,intent(out) :: hash(:)
+   real,allocatable,intent(out) :: prob(:)
+
+   logical :: eof
+   character(len=256) :: line
+   integer :: nevt,ievt
+
+   read(fd,*) nevt
+   allocate(hash(1:nevt))
+   allocate(prob(1:nevt))
+
+   eof = .false.
+   do while ( .not. eof )
+     call read_line( fd, line, eof )
+     line = trim ( adjustl ( line ) )
+     if ( line(1:1) == '@' ) then
+       line = trim ( adjustl ( line(2:) ) )   !! to get rid of '@' and possible spaces
+       read(line,*) ievt
+       read(fd,*) prob(ievt)
+       read(fd,*) hash(ievt)
+     endif
+   end do
+!   rewind(fd)
+
+  end subroutine get_hash_prob_new_1
 
 
   subroutine read_ordered_event(fd,idx,maxtyp,disp)
@@ -1124,6 +1228,90 @@ write(*,*) 'reading ordered event index',idx
    end do
    rewind(fd) 
   end subroutine read_ordered_event
+
+
+  subroutine read_evt_idx(fd,idx)
+   implicit none
+   integer, intent(in) :: fd
+   integer, intent(in) :: idx
+
+   character(len = 128 ) :: line
+   logical :: eof
+   integer :: ievt
+   
+   eof = .false.
+   do while (.not. eof)
+     call read_line(fd, line, eof)
+     line = trim(adjustl(line))
+     if(line(1:1) =='@') then
+       line = trim(adjustl(line(2:)))
+       read(line, *) ievt
+       if( ievt == idx ) goto 102
+     endif
+   end do
+   102 continue
+  end subroutine read_evt_idx  
+
+
+  subroutine read_ordered_event_1(fd,idx,maxtyp,final_nat,final_typ,final_coord)
+   implicit none
+   integer, intent(in) :: fd
+   integer, intent(in) :: idx
+   integer, intent(out) :: maxtyp
+!   real, allocatable, intent(out) :: disp(:,:)
+   integer, intent(out) :: final_nat
+   integer, allocatable, intent(out) :: final_typ(:)
+   real, allocatable,intent(out) :: final_coord(:,:)
+
+   integer :: ievt,i,dum
+   logical :: eof,eod
+   character(len = 128) :: line
+
+   ! read ntyp of wanted event index idx
+write(*,*) 'reading ordered event index',idx
+   eof = .false.
+   eod = .false.
+   do while(.not. eof)
+
+     call read_line(fd, line, eof)
+     line = trim(adjustl(line))
+     if(line(1:1) == '@' ) then
+
+       line = trim(adjustl(line(2:)))
+       read(line,*) ievt
+       if ( ievt == idx ) then
+
+         do while(.not.eod)
+           call read_line(fd,line,eod)
+           line = trim(adjustl(line))
+           if(line(1:6) == 'maxtyp') then
+             line = trim(adjustl(line(7:)))
+             read(line,*) maxtyp
+             eod = .true.
+           endif
+         end do
+
+!         allocate(disp(1:maxtyp, 1:3))
+
+         do i = 1, maxtyp
+!           read (fd,*) dum, disp(i,1), disp(i,2), disp(i,3)
+         end do
+ 
+         read(fd,*) final_nat
+         allocate(final_typ(1:final_nat))
+         allocate(final_coord(1:final_nat,1:3))
+         do i = 1, final_nat
+           read(fd,*) final_typ(i), final_coord(i,1),final_coord(i,2),final_coord(i,3)
+         end do
+       eof = .true.
+       endif
+
+     endif
+
+   end do
+   rewind(fd) 
+  end subroutine read_ordered_event_1
+
 
   subroutine get_hash_prob(fd,hash1,hash2,prob,nevt)
   !-----------------------
@@ -1178,6 +1366,93 @@ write(*,*) 'reading ordered event index',idx
    end do
    rewind(fd)
   end subroutine get_hash_prob
+ 
+
+  subroutine get_ev_pbc( fd, ev_idx, ev_ntyp, ev_init_nat, ev_init_typ,lat, ev_init_coord, &
+                                       ev_final_nat, ev_final_typ, ev_final_coord, prob )
+  !-------------------------------------
+  ! extract the initial and final coordinates of the chosen event
+  !-------------------------------------
+  ! fd ==> file descriptor of events file
+  ! ev_idx ==> index of the event to look up
+  ! ev_init_nat ==> initial number of atoms in an event
+  ! ev_final_nat ==> final number of atoms in an event - could differ from initial!!!!
+  ! ev_init_typ, ev_final_typ ==> initial and final vectors of type of atoms
+  ! ev_init_coord ==> initial coords of all atoms in an event
+  ! ev_final_coord ==> final coords of all atoms in an event
+   implicit none
+   integer, intent(in) :: fd
+   integer, intent(in) :: ev_idx
+   character(len=256) :: line
+   logical :: eof
+   real :: dum
+   integer :: ievt, i,j
+   integer, intent(out) :: ev_ntyp
+   integer, intent(out) :: ev_init_nat, ev_final_nat
+   integer, allocatable, intent(out) :: ev_init_typ(:), ev_final_typ(:)
+   real, allocatable, intent(out) :: ev_init_coord(:,:), ev_final_coord(:,:)
+   real, intent(out) :: prob
+   real, dimension(3,3), intent(out) :: lat
+
+
+   if( allocated(ev_init_typ)) deallocate(ev_init_typ)
+   if( allocated(ev_init_coord)) deallocate(ev_init_coord)
+!!!! this still relies on the events being tagged by numbers e.g. @3
+!! could introduce a counter on events...more simple
+   eof=.false.
+   do while (.not. eof)
+     call read_line(fd,line,eof)
+     line = trim ( adjustl (line) )
+     if ( line(1:1) == '@' ) then
+        read(line(2:),*) ievt
+        read(fd,*) dum, dum, prob
+     endif
+     !!! get the wanted event given by ev_idx
+     if (ievt == ev_idx) then
+       do while (.not.eof)
+         call read_line(fd,line,eof)
+         line = trim ( adjustl (line) )
+         if (line ( 1:4) == 'ntyp') then
+           line = trim(adjustl(line(5:) ))
+           if (line(1:1) == '=' ) line = trim(adjustl(line(2:)))
+           read(line,*) ev_ntyp
+!         endif
+!         call read_line(fd,line,eof)
+!         line = trim ( adjustl (line) )
+         elseif( line(1:3) == 'lat' ) then
+           read(fd,*) dum
+           do i = 1,3
+             read(fd,*) (lat(i,j),j=1,3)
+           end do
+           lat = lat * dum
+         elseif ( line(1:13) =='begin initial' ) then
+           !!! read initial configuration
+           read(fd,*) ev_init_nat
+           allocate(ev_init_typ(1:ev_init_nat))
+           allocate(ev_init_coord(1:ev_init_nat,1:3))
+           do i=1,ev_init_nat
+             read(fd,*) ev_init_typ(i),ev_init_coord(i,1), &
+                           ev_init_coord(i,2), ev_init_coord(i,3)
+           end do
+         elseif( line(1:11)=='begin final') then
+           !!! read final configuration
+           read(fd,*) ev_final_nat
+           allocate(ev_final_typ(1:ev_final_nat))
+           allocate(ev_final_coord(1:ev_final_nat,1:3))
+           do i=1,ev_final_nat
+             read(fd,*) ev_final_typ(i), ev_final_coord(i,1),&
+                           ev_final_coord(i,2), ev_final_coord(i,3)
+           end do
+           !!! finished reading all necessary, break the loop
+           eof=.true.
+         endif
+       end do
+     endif
+   end do
+   rewind(fd)
+  end subroutine get_ev_pbc
+
+
 
 
   subroutine get_ev_coord( fd, ev_idx, ev_ntyp, ev_init_nat, ev_init_typ, ev_init_coord, &
@@ -1356,6 +1631,7 @@ write(*,*) 'reading ordered event index',idx
 
   if( sum(G) .lt. 1e-10) then
     write(*,*) 'No event possible, zero probability'
+    idx = 0
     goto 104
   endif
 !write(*,*) 'rnd',rnd
@@ -1551,8 +1827,8 @@ write(*,*) 'reading ordered event index',idx
    implicit none
    integer, intent(in) :: fd_sites
    integer, intent(in) :: nsites
-   integer, allocatable, intent(out) :: site_hash(:)
-   real, allocatable, intent(out) :: coord(:,:)
+   integer, dimension(nsites), intent(out) :: site_hash(:)
+   real, dimension(nsites,3), intent(out) :: coord(:,:)
    real, dimension(3,3), intent(out) :: lat
    real :: alat
    integer :: isite
@@ -1560,8 +1836,8 @@ write(*,*) 'reading ordered event index',idx
    logical :: eof
    integer :: i
    
-   if (.not. allocated(site_hash)) allocate(site_hash(1:nsites))
-   if (.not. allocated(coord)) allocate(coord(1:nsites,1:3))
+!   if (.not. allocated(site_hash)) allocate(site_hash(1:nsites))
+!   if (.not. allocated(coord)) allocate(coord(1:nsites,1:3))
     eof=.false.
     do while (.not.eof)
       call read_line(fd_sites,line,eof)
@@ -1932,6 +2208,38 @@ write(*,*) '>>dist is',dist
   end subroutine projection_new
 
 
+  subroutine projection_new_1(nat,typ,coords,ntyp,basis,pen_depths,projs)
+   !!  < Q_i,k , e_alpha > * exp( | R_i,k | / mu_k )
+   implicit none
+
+   integer, intent(in) :: nat
+   integer, dimension(nat), intent(in) :: typ
+   real, dimension(nat,3) :: coords
+   integer, intent(in) :: ntyp
+   real, dimension(3,3) :: basis
+   real, dimension(ntyp), intent(in) :: pen_depths(:)  !! mu_k
+   real, dimension(ntyp,3), intent(out) :: projs
+  
+   integer :: i, typ_i
+   real :: dist
+   real, dimension(3) :: r_i
+
+   projs(:,:) = 0.0d0
+   do i = 1, nat
+      r_i = coords(i,:)
+      typ_i = typ(i)
+      dist = norm( r_i )
+      call cart_to_crist(r_i,basis)
+      projs(typ_i,1) = projs(typ_i,1) + &
+                       r_i(1) * exp( - dist / pen_depths( typ_i ) )   
+      projs(typ_i,2) = projs(typ_i,2) + &
+                       r_i(2) * exp( - dist / pen_depths( typ_i ) )   
+      projs(typ_i,3) = projs(typ_i,3) + &
+                       r_i(3) * exp( - dist / pen_depths( typ_i ) )   
+   end do
+  end subroutine projection_new_1
+
+
   subroutine compare_array(array1, array2, tolerance, are_equal)
    implicit none
    real, intent(in) :: array1(:,:)
@@ -1983,7 +2291,7 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   end subroutine set_rcut
 
 
-  subroutine this_dos(nat,maxtyp,nbsteps,sigma,coords,types,bases,mu_k,dos,rcut)
+  subroutine this_dos(nat,maxtyp,nbsteps,sigma,coords,types,bases,mu_k,dos,rcut,atm_in_basis)
   !! same subroutine as below, but this one has dos as intent(out) and does not write files
   implicit none
   integer, intent(in) :: nat
@@ -1995,6 +2303,7 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   real, intent(in) :: bases(:,:)
   real, intent(in) :: mu_k(:)
   real, intent(in) :: rcut
+  integer, dimension(2), intent(in) :: atm_in_basis
   real, allocatable, intent(out) :: dos(:,:,:)
 
   integer :: i, k, j, m
@@ -2016,6 +2325,8 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   allocate(dos( 1:nbsteps, 1:3, 1:maxtyp ))
   dos(:,:,:) = 0.0
 
+write(*,*) 'atim in basis routine',atm_in_basis
+
   !! calculate the DOS function: to each value of projection, put a gaussian which height
   !!   is determined by exp( - abs( R ) / mu_k ). Then, sum the contributions of all
   !!   gaussians at each point in the discretization of the axis.
@@ -2026,6 +2337,15 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
     call cart_to_crist( coords( k, : ), bases )
     do i = 1, nbsteps
       do j = 1, 3
+        gauss_height = exp ( - abs(dist) / mu_k( m_typ ) )
+        if( j == 2 .and. k == atm_in_basis(1)) then
+            gauss_height=0.0 !!!! k needs to be atm_in_basis, not simply 1 or 2!!! 
+write(*,*) 'omitting',k,'in ax',j
+        endif
+        if( (j==3 .and. k==atm_in_basis(1)) .or. (j==3 .and. k==atm_in_basis(2))) then
+           gauss_height=0.0
+write(*,*) 'omitting',k,'in ax',j
+        endif
         dos( i, j, m_typ ) = dos( i, j, m_typ) + &
                   gauss_height * &
                   exp( -(projmin + deltax*(i-1) - coords(k,j))**2 / (2*sigma( m_typ )**2 ))
@@ -2076,7 +2396,113 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   end subroutine this_dos
 
 
-  subroutine generate_dos(nat,maxtyp,nbsteps,sigma,coords,types,bases,mu_k,ievt,rcut)
+  subroutine this_dos_1(nat,maxtyp,nbsteps,sigma,coords,types,bases,mu_k,dos,rcut,atm_in_basis)
+  implicit none
+  integer, intent(in) :: nat
+  integer, intent(in) :: maxtyp
+  integer, intent(in) :: nbsteps
+  real, dimension(maxtyp), intent(in) :: sigma
+  real, dimension(nat,3),intent(in) :: coords
+  integer, dimension(nat), intent(in) :: types
+  real, dimension(3,3),intent(in) :: bases
+  real, dimension(maxtyp),intent(in) :: mu_k
+  real, intent(in) :: rcut
+  integer, dimension(2), intent(in) :: atm_in_basis
+  real, dimension(nbsteps,3,maxtyp), intent(out) :: dos
+
+  integer :: i, k, j, m
+  integer :: m_typ
+  real :: projmin, projmax
+  real :: deltax
+  real :: dist
+  real :: gauss_height, gh
+  real, dimension(3) :: r_k
+  real, allocatable :: sumdos(:,:)
+  character(len = 50) :: fname
+
+  !! setup min and maxval, like this the deltax is the same for all colors and axes
+  projmin = -rcut
+  projmax = rcut
+  deltax = (projmax + abs(projmin) ) / nbsteps
+
+  dos(:,:,:) = 0.0
+
+!write(*,*) 'atim in basis routine',atm_in_basis
+
+  !! calculate the DOS function: to each value of projection, put a gaussian which height
+  !!   is determined by exp( - abs( R ) / mu_k ). Then, sum the contributions of all
+  !!   gaussians at each point in the discretization of the axis.
+  do k = 1, nat
+    r_k = coords(k,:)
+    dist = norm( r_k ) 
+    m_typ = types(k)
+    gauss_height = exp ( - abs(dist) / mu_k( m_typ ) )
+    call cart_to_crist( r_k, bases )
+    do i = 1, nbsteps
+      do j = 1, 3
+!        gauss_height = exp ( - abs(dist) / mu_k( m_typ ) )
+        gh = gauss_height
+!        if ( k == 1 ) gh = 0.0
+!        if( j == 2 .and. k == atm_in_basis(1)) then
+!            gh=0.0  
+!        endif
+!        if( (j==3 .and. k==atm_in_basis(1)) .or. (j==3 .and. k==atm_in_basis(2))) then
+!           gh=0.0
+!write(*,*) 'omitting',k,'in ax',j
+!        endif
+        dos( i, j, m_typ ) = dos( i, j, m_typ) + &
+                  gh * &
+                  exp( -(projmin + deltax*(i-1) - r_k(j))**2 / (2*sigma( m_typ )**2 ))
+      end do
+    end do
+  end do
+
+  !! integrate for each color separately
+  !! " integral( f_a^k( x_a ) ) d x_a "
+  allocate(sumdos( 1:3, 1:maxtyp ))
+  sumdos(:,:) = 0.0
+  do i = 1, nbsteps
+    do j = 1, 3
+      do m = 1, maxtyp
+        sumdos( j, m ) = sumdos( j, m ) + dos( i, j, m )
+      end do
+    end do
+  end do
+
+  !! sum all colors together: for normalization no matter the color
+!  do j = 1, 3
+!    sumdos(j,:) = sum(sumdos(j,:))
+!  end do
+
+  !! sum all axes together, for normalization over the axes
+!  do m = 1, maxtyp
+!    sumdos(1,m) = sum(sumdos(:,m))
+!    sumdos(:,m) = sumdos(1,m)
+!  end do
+ 
+  !! sum all colors, all axes together: for normalization over total integral
+  sumdos(:,:) = sum(sumdos(:,:))
+
+  do j = 1,3
+    do m = 1, maxtyp
+!      write(*,*) 'axis',j,'typ',m,'sumdos',sumdos(j,m)
+    end do
+  end do
+
+  !! divide by integral
+  do m = 1, maxtyp
+    do j = 1, 3
+      if ( sumdos( j, m ) .ne. 0 ) then
+        dos( :, j, m ) = dos( :, j, m ) / sumdos( j, m )
+      endif
+    end do
+  end do
+
+  deallocate(sumdos)
+  end subroutine this_dos_1
+
+
+  subroutine generate_dos(nat,maxtyp,nbsteps,sigma,coords,types,bases,mu_k,ievt,rcut,atm_in_basis)
   implicit none
   integer, intent(in) :: nat
   integer, intent(in) :: maxtyp
@@ -2088,6 +2514,7 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   real, intent(in) :: mu_k(:)
   integer, intent(in) :: ievt
   real, intent(in) :: rcut
+  integer, dimension(2), intent(in) :: atm_in_basis
 
   integer :: i, k, j, m
   integer :: m_typ
@@ -2109,6 +2536,8 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   allocate(dos( 1:nbsteps, 1:3, 1:maxtyp ))
   dos(:,:,:) = 0.0
 
+write(*,*) 'atm in basis routine',atm_in_basis
+
   !! calculate the DOS function: to each value of projection, put a gaussian which height
   !!   is determined by exp( - abs( R ) / mu_k ). Then, sum the contributions of all
   !!   gaussians at each point in the discretization of the axis.
@@ -2116,9 +2545,15 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
     dist = norm( coords(k,:) ) 
     m_typ = types(k)
     gauss_height = exp ( - abs(dist) / mu_k( m_typ ) )
+write(*,*) 'k,typ,dist,g.heigh'
+write(*,*) k,m_typ,dist,gauss_height
     call cart_to_crist( coords( k, : ), bases )
     do i = 1, nbsteps
       do j = 1, 3
+        gauss_height = exp ( - abs(dist) / mu_k( m_typ ) )
+        if ( k == 1) gauss_height = 0.0
+        if( j == 2 .and. k == atm_in_basis(1)) gauss_height = 0.0
+        if( (j == 3 .and. k == atm_in_basis(1)) .or. (j == 3 .and.k==atm_in_basis(2))) gauss_height = 0.0
         dos( i, j, m_typ ) = dos( i, j, m_typ) + &
                   gauss_height * &
                   exp( -(projmin + deltax*(i-1) - coords(k,j))**2 / (2*sigma( m_typ )**2 ))
@@ -2162,7 +2597,9 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   !! divide by integral
   do m = 1, maxtyp
     do j = 1, 3
-      dos( :, j, m ) = dos( :, j, m ) / sumdos( j, m )
+      if(sumdos(j,m) .ne. 0) then
+       dos( :, j, m ) = dos( :, j, m ) / sumdos( j, m )
+      endif
     end do
   end do
 
@@ -2181,6 +2618,34 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
   end subroutine generate_dos
 
 
+  subroutine write_dos(file_unit, ievt, nbsteps, rcut, maxtyp, dos)
+  !! write the dos to file
+   implicit none
+   integer, intent(in) :: file_unit
+   integer, intent(in) :: ievt
+   integer, intent(in) :: nbsteps
+   real, intent(in) :: rcut
+   integer, intent(in) :: maxtyp
+   real, dimension(1:nbsteps, 1:3, 1:maxtyp), intent(in) :: dos
+   
+   real :: deltax
+   integer :: i, j, m
+   character(len=30) :: fname
+
+   deltax = 2*rcut / nbsteps
+
+   do j = 1, 3
+     write( fname, '( a, i0, a, i0, a )' ) 'ev_',ievt,'_proj_on_',j,'.dat'
+     open( unit = file_unit, file = fname, status = 'replace' )
+     do i = 1, nbsteps
+       write( file_unit, * ) (i - 1) * deltax - rcut, ( dos( i, j, m ), m = 1, maxtyp )
+     end do
+     close(file_unit)
+   end do
+
+  end subroutine write_dos
+
+
   subroutine read_ref_dos(ievt, axis, maxtyp, nbsteps, dos)
   !! read the dos file of referenced event ievt, only the specified axis
    implicit none
@@ -2188,14 +2653,15 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
    integer, intent(in) :: axis
    integer, intent(in) :: maxtyp
    integer, intent(in) :: nbsteps
-   real, allocatable, intent(out) :: dos(:,:)
+!   real, allocatable, intent(out) :: dos(:,:)
+   real, dimension(nbsteps,maxtyp), intent(out) :: dos
 
    character(len=100) :: fname
    real :: dum
    integer :: i,k
    
-   if(allocated(dos)) deallocate(dos)
-   allocate(dos(1:nbsteps,1:maxtyp))   
+!   if(allocated(dos)) deallocate(dos)
+!   allocate(dos(1:nbsteps,1:maxtyp))   
 
    write(fname,'(a,i0,a,i0,a)') 'ev_',ievt,'_proj_on_',axis,'.dat' 
    open(unit = 201, file=fname, status='old',action='read')
@@ -2211,5 +2677,360 @@ write(*,*) 'compared arrays are equal',are_equal,'with tolerance',tolerance
    
 
   end subroutine compare_dos
+
+
+  subroutine identify_cluster(nat,connect,isite,res)
+  !! identify a cluster around isite, based on connectivity matrix
+  !! matrix-vector multiplication of connect with a vector that is 1 at indices of atoms we wish
+  !! to get connections of, gives all connections to those atoms. Like this can start from atom
+  !! 'isite', and grow the vector with indices step by step to include further connections, while
+  !! also keeping the old ones.
+  !! Once the resulting vector is the same as input vector (no new connections have been found), the
+  !! algorithm can stop, we have a cluster.
+   implicit none
+   integer, intent(in) :: nat
+   integer, dimension(nat,nat), intent(in) :: connect
+   integer, intent(in) :: isite
+   integer, dimension(nat), intent(out) :: res !! gives a vector with 1 on index which is in cluster
+
+   integer, dimension(nat) :: vector, res_old
+   integer :: i, j  
+
+   res(:) = 0
+   res_old(:) = 0
+   vector(:) = 0
+   vector(isite) = 1
+   DO j = 1, nat
+     !! do matrix-vector product where vector contains all previously found indices
+     do i = 1, nat
+       res(i) = dot_product( connect(i,:), vector )
+       if( res(i) .ne. 0) res(i) = 1   !! keeping values at 0, only interested if there is connection
+     end do
+!write(*,*) 'res'
+!write(*,'(40I3)') (res(i),i=1,nat)
+     !! add newly found connections to the vector
+     vector = vector + res
+
+     !! if there are no new connections, exit
+     if( all(res .eq. res_old )) exit
+write(*,'(64I2)') res(:) - res_old(:)
+
+     res_old = res
+   END DO
+!write(*,'(40I3)') (res(i),i=1,nat)
+  end subroutine identify_cluster
+
+
+  subroutine find_order(n,row,start_ind,order)
+  !! permute a given vector of 1 and 0 to an order where all 1 are on left, but behind starting index
+   implicit none
+   integer, intent(in) :: n
+   integer, dimension(n), intent(in) :: row
+   integer, intent(in) :: start_ind
+   integer, dimension(n), intent(out) :: order
+ 
+   integer, dimension(n) :: ord_row
+   integer :: a_loc, b_loc
+   integer :: i
+   
+   ord_row(:) = row(:)
+   a_loc = 1
+   b_loc = n
+   
+   !! in the beginning, assume order is (1,2,3,...,n)
+   do i = 1, n
+     order(i) = i
+   end do
+
+   !! if there is no ordering to be done, exit
+   if( all(ord_row(start_ind:) .eq. 0 )) goto 102
+   if( all(ord_row(start_ind:) .eq. 1 )) goto 102
+
+   DO WHILE (.true.)
+
+     !! get location of the first 0 in row, after start_ind
+     do i = start_ind,n
+       if(ord_row(i)==0) then
+         a_loc = i
+         exit
+       endif
+     end do
+
+     !! get location of the last 1 in row
+     do i = start_ind,n
+       if(ord_row(i)==1) then
+         b_loc = i
+       endif
+     end do
+
+     !! if the location of first 0 is greater than location of last 1, the row is ordered, exit.
+     if( a_loc .gt. b_loc ) exit
+
+
+     !! swap that 0 with the last 1 in row
+     ord_row(a_loc) = row(b_loc)
+     ord_row(b_loc) = row(a_loc)
+
+     !! swap the two indices to keep track of order
+     order( a_loc ) = b_loc
+     order( b_loc ) = a_loc
+   END DO
+
+   102 continue
+  end subroutine find_order
+
+
+  subroutine permute_matrix(n,M,order)
+  !! permute a connectivity matrix by matrix matrix multiplication:
+  !!  P.t M P   where P is the permutation matrix and M is the matrix to be permuted
+  !! Final order to permute to is given by input vector of order
+   implicit none
+   integer, intent(in) :: n
+   integer, dimension(n,n), intent(inout) :: M
+   integer, dimension(n), intent(in) :: order
+
+   integer, dimension(n,n) :: P, res
+   integer :: i
+
+   P(:,:) = 0
+   res(:,:) = 0
+
+   !! generate the permutation matrix
+   do i = 1, n
+     P( i, order(i) ) = 1
+   end do
+   
+!write(*,*) 'permutation matrix'
+!do i = 1, n
+! write(*,'(30I2)') P(i,:)
+!end do
+
+   res = matmul(M,P)
+   P = transpose(P)
+!write(*,*) 'permutation matrix transpose'
+!do i = 1, n
+! write(*,'(30I2)') P(i,:)
+!end do
+   res = matmul(P,res)
+   M = res
+  end subroutine permute_matrix
+
+
+  subroutine write_xsf_event(file_unit,ev_tag,nat,typ,coords,bases)
+  !! write an .xsf file with basis vectors written as forces (read with xcrysden)
+  integer, intent(in) :: file_unit
+  integer, intent(in) :: ev_tag
+  integer, intent(in) :: nat
+  integer, dimension(nat), intent(in) :: typ
+  real, dimension(nat,3), intent(in) :: coords
+  real, dimension(3,3), intent(in) :: bases
+
+  character(len=30) :: fname
+  integer :: k
+
+   write(fname,'(a,i0,a)') 'ref_event_',ev_tag,'.xsf'
+   open(unit = file_unit, file = fname, status = 'replace')
+   write(file_unit,*) 'ATOMS'
+
+   !! first three rows are copy of the same atom (shifted 1e-4 b/c xcrysden.) with a basis vector
+   write(file_unit,*) typ(1), coords(1,1), coords(1,2),coords(1,3),&
+                               bases(1,1), bases(1,2), bases(1,3)
+
+   write(file_unit,*) typ(1), coords(1,1)+0.0001, coords(1,2),coords(1,3),&
+                               bases(2,1), bases(2,2), bases(2,3)
+
+   write(file_unit,*) typ(1), coords(1,1), coords(1,2)+0.0001,coords(1,3),&
+                               bases(3,1), bases(3,2), bases(3,3)
+
+   !! the rest of the atoms
+   do k = 2, nat
+     write(file_unit,*) typ(k),coords(k,:)
+   end do  
+
+  end subroutine write_xsf_event
+
+
+  subroutine generate_basis(vec1,vec2,basis)
+  implicit none
+  real, dimension(3), intent(in) :: vec1
+  real, dimension(3), intent(in) :: vec2
+  real, dimension(3,3), intent(out) :: basis
+
+  basis(1,:) = vec1(:)
+  basis(1,:) = basis(1,:)/ norm( basis(1,:) )
+
+  basis(2,:) = vec2(:)
+  basis(2,:) = basis(2,:) / norm( basis(2,:) ) 
+!!!!! unfinished subroutine
+  end subroutine generate_basis
+
+
+  subroutine matrix_power( n, M_in, pow, M_out )
+  !! square matrix raised to a power
+   implicit none
+   integer, intent(in) :: n !! size of the matrix
+   integer, dimension(n,n), intent(in) :: M_in !! input matrix
+   integer, intent(in) :: pow !! power
+   integer, dimension(n,n), intent(out) :: M_out !! output matrix
+ 
+   integer :: i
+  
+   M_out(:,:) = 0
+   if( pow .eq. 0 ) then
+     do i = 1, n
+       M_out(i,i) = 1
+     end do
+   endif
+
+   M_out = M_in
+   do i = 2, pow
+     M_out = matmul(M_out,M_in)
+   end do
+  end subroutine matrix_power
+ 
+
+  subroutine mlply(n,v1,v2,vout)
+  !! 'multiply' two vectors such that don't care for actual numbers, just if 0 or something
+  implicit none
+  integer, intent(in) :: n
+  integer, dimension(n), intent(in) :: v1, v2
+  integer, intent(out) :: vout
+  vout = 0
+  if(any( v1*v2 .ne. 0 )) vout=1
+  end subroutine mlply
+
+
+  function intmatmul(M1,M2)
+   implicit none
+   integer :: M1(:,:),M2(:,:)
+   integer :: intmatmul( size(M1,1),size(M1,2) )
+   integer :: n, i, j
+
+   intmatmul(:,:) = 0
+   n = size(M1,1)
+   do j = 1, n
+     do i = 1, n
+       if( any( M1(j,:)*M2(:,i) .ne. 0) ) intmatmul(j,i) = 1
+     end do
+   end do
+  
+  end function intmatmul
+
+
+  subroutine find_loc(n,array,val,direction,loc)
+   implicit none
+   integer, intent(in) :: n !! dimension of array
+   integer, dimension(n), intent(in) :: array !! array to look in
+   integer, intent(in) :: val !! value that is searched
+   integer, intent(in) :: direction !! direction to search (1:frwd, -1:bckwd)
+   integer, intent(out) :: loc !! location found
+
+   integer :: i
+
+   do i = 1, n
+     if( array( i ) == val ) then
+       loc = i
+       if( direction == 1 ) exit
+     endif
+   end do
+
+  end subroutine find_loc
+
+
+  integer function p_substract(a,b)
+  !! substraction c = a - b, where if b > a, c = 0
+   implicit none
+   integer :: a, b
+  
+   p_substract = a - b
+   if( b .gt. a ) p_substract = 0
+  end function p_substract
+
+
+
+ subroutine generate_neighbor_connectivity(nat, c_in, neigh, c_out)
+ !! generate a connectivity matrix which is directed such that each vertex has a directed
+ !! connection FROM a vertex that is up to 'neigh' connections away, including self.
+ !! If the vertex 4 is found from vertex 6, the connectivity element c_6,4 = 1. 
+ !! Like this, if you multiply thuis connectivity with a vector with 1 at some index i, you
+ !! get back all indices up to 'neigh' away from i.
+  implicit none
+  integer, intent(in) :: nat
+  integer, dimension(nat,nat), intent(in) :: c_in
+  integer, intent(in) :: neigh
+  integer, dimension(nat,nat), intent(out) :: c_out
+
+  integer :: i, j, site, n_count
+  integer, dimension(nat) :: vec, res, res_old
+  logical, dimension(nat) :: ci, vi
+
+  c_out(:,:) = c_in(:,:)
+
+  do site = 1, nat
+    res(:) = 0
+    res_old(:) = 0
+    vec(:) = 0
+    vec(site) = 1
+    n_count = 1
+
+    !! for each site in the graph go 'neigh'-deep and find all connected vertices
+    do while( n_count .le. neigh )
+
+      !! matrix-vector 'multiplication' with logicals maybe faster for large matrices
+      do i = 1, nat
+        ci = c_in(i,:)
+        vi = vec(:)
+        if( any( ci(:) .and. vi(:) ) ) res(i) = 1
+      end do
+
+      !! add the newly found directed connections
+      c_out(:,site) = c_out(:,site) + res(:)
+
+      !! if nothing new found, exit
+      if( all( res(:) .eq. res_old(:) )) exit
+
+      !! increment with keeping all previous vertices
+      vec(:) = vec(:) + res(:)
+      res_old(:) = res(:)
+      n_count = n_count + 1
+    end do
+  end do
+
+  do i = 1, nat
+    do j = 1, nat
+      if( c_out(i,j) .ne. 0 ) c_out(i,j) = 1
+    end do
+  end do
+
+ end subroutine generate_neighbor_connectivity
+
+
+ subroutine selective_local_connect(n_in, c_in, list, n_out, c_out)
+ !! Generate a smaller connect from the global. Pick out only the vertices given in
+ !! the input vector 'list' which is a (0,1)-vector.
+  implicit none
+  integer, intent(in) :: n_in
+  integer, dimension(n_in,n_in), intent(in) :: c_in
+  integer, dimension(n_in), intent(in) :: list
+  integer, intent(in) :: n_out
+  integer, dimension(n_out,n_out), intent(out) :: c_out
+
+  integer :: i, j, m, n
+
+  m = 1
+  n = 1
+  do i = 1, n_in
+    n = 1
+    do j = 1, n_in
+      c_out(m,n) = c_in(i,j)*list(j)
+      n = n + list(j)
+      if( n .eq. n_out + 1 ) exit
+    end do
+    m = m + list(i)
+    if( m .eq. n_out + 1 ) exit
+  end do
+
+ end subroutine selective_local_connect
+
 
 end module routines
