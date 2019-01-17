@@ -7,4 +7,5 @@
 *.dSYM
 *.swp
 *.so
-*nauty*
+nauty/*
+
